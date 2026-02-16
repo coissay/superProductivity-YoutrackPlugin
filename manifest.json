@@ -1,0 +1,11 @@
+{
+  "id": "youtrack-csv-importer",
+  "name": "YouTrack CSV Importer",
+  "version": "1.2.0",
+  "description": "Import YouTrack issues from CSV export into SuperProductivity with tags support",
+  "manifestVersion": 1,
+  "minSupVersion": "14.0.0",
+  "author": "ycoissard",
+  "iFrame": true,
+  "sidePanel": true
+}
