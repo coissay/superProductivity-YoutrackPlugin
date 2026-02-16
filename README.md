@@ -192,6 +192,6 @@ To report a bug or suggest an improvement:
 
 **Version**: 1.1.0  
 **Compatibility**: SuperProductivity 14.0.0+  
-**Author**: Custom Plugin
+**Author**: ycoissard
 
 Happy importing! 🚀
