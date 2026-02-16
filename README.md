@@ -165,10 +165,9 @@ These features may be added in future versions.
 
 ## 🔮 Possible future enhancements
 
-- 📅 Import dates and deadlines
+- 📅 Assign planned date
 - 👤 Task assignment
 - 🎯 Priority management
-- ⏱️ Time spent import
 - 🔄 Detection and update of existing tasks
 - 🔗 Bidirectional synchronization with YouTrack
 
@@ -178,6 +177,7 @@ This plugin is provided as-is, without warranty.
 
 ## 🤝 Contributing
 
+Open to contribution
 To report a bug or suggest an improvement:
 1. Open the console (F12) during import
 2. Copy the error logs
@@ -190,7 +190,7 @@ To report a bug or suggest an improvement:
 
 ---
 
-**Version**: 1.1.0  
+**Version**: 1.2.0  
 **Compatibility**: SuperProductivity 14.0.0+  
 **Author**: ycoissard
 
