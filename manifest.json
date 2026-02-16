@@ -6,6 +6,5 @@
   "manifestVersion": 1,
   "minSupVersion": "14.0.0",
   "author": "ycoissard",
-  "iFrame": true,
-  "sidePanel": true
+  "iFrame": true
 }

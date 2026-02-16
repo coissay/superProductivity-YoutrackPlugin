@@ -1,0 +1,510 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>YouTrack CSV Importer</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    }
+
+    body {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .modal {
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      width: 100%;
+      max-width: 600px;
+      max-height: 90vh;
+      overflow-y: auto;
+      animation: slideUp 0.4s ease;
+    }
+
+    @keyframes slideUp {
+      from {
+        opacity: 0;
+        transform: translateY(30px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .modal-header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 32px 24px;
+      border-radius: 16px 16px 0 0;
+    }
+
+    .modal-header h1 {
+      font-size: 24px;
+      font-weight: 700;
+      margin: 0;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .modal-body {
+      padding: 32px 24px;
+    }
+
+    .section {
+      margin-bottom: 28px;
+    }
+
+    .section:last-child {
+      margin-bottom: 0;
+    }
+
+    .section-title {
+      font-size: 14px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #667eea;
+      margin-bottom: 12px;
+    }
+
+    .file-input-group {
+      position: relative;
+      display: flex;
+      gap: 12px;
+    }
+
+    .file-input-wrapper {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+    }
+
+    input[type="file"] {
+      display: none;
+    }
+
+    .file-label {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 16px 20px;
+      border: 2px dashed #ddd;
+      border-radius: 8px;
+      background: #f8f9fa;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      font-weight: 500;
+      color: #666;
+    }
+
+    .file-label:hover {
+      border-color: #667eea;
+      background: #f0f1ff;
+      color: #667eea;
+    }
+
+    .file-name {
+      display: inline-block;
+      color: #667eea;
+      font-weight: 600;
+    }
+
+
+    button {
+      padding: 12px 24px !important;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+      color: white !important;
+      border: none !important;
+      border-radius: 8px !important;
+      font-weight: 600 !important;
+      font-size: 14px !important;
+      cursor: pointer !important;
+      transition: transform 0.3s ease, box-shadow 0.3s ease, filter 0.3s ease !important;
+      white-space: nowrap !important;
+    }
+
+    button:hover:not(:disabled) {
+      transform: translateY(-2px) !important;
+      box-shadow: 0 8px 16px rgba(102, 126, 234, 0.4) !important;
+      filter: brightness(1.1) !important;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+      color: white !important;
+    }
+
+    button:disabled {
+      opacity: 0.5 !important;
+      cursor: not-allowed !important;
+      transform: none !important;
+    }
+
+    button.btn-secondary {
+      background: #e0e0e0 !important;
+      color: #333 !important;
+    }
+
+    button.btn-secondary:hover:not(:disabled) {
+      background: #d0d0d0 !important;
+      filter: brightness(0.9) !important;
+      transform: translateY(-2px) !important;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1) !important;
+      color: #333 !important;
+    }
+
+    button.btn-danger {
+      background: #ff6b6b !important;
+      color: white !important;
+    }
+
+    button.btn-danger:hover:not(:disabled) {
+      background: #ff6b6b !important;
+      filter: brightness(1.1) !important;
+      transform: translateY(-2px) !important;
+      box-shadow: 0 8px 16px rgba(255, 107, 107, 0.4) !important;
+      color: white !important;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    .preview-stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+
+    .stat-card {
+      background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+      padding: 16px;
+      border-radius: 8px;
+      text-align: center;
+      border-left: 4px solid #667eea;
+    }
+
+    .stat-number {
+      font-size: 28px;
+      font-weight: 700;
+      color: #667eea;
+    }
+
+    .stat-label {
+      font-size: 12px;
+      color: #999;
+      margin-top: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .task-list {
+      max-height: 300px;
+      overflow-y: auto;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+
+    .task-item {
+      padding: 12px 16px;
+      border-bottom: 1px solid #e0e0e0;
+      transition: background 0.2s ease;
+    }
+
+    .task-item:hover {
+      background: #f8f9fa;
+    }
+
+    .task-item:last-child {
+      border-bottom: none;
+    }
+
+    .task-title {
+      font-weight: 600;
+      color: #333;
+      font-size: 13px;
+      margin-bottom: 4px;
+    }
+
+    .task-meta {
+      font-size: 12px;
+      color: #999;
+      margin-bottom: 6px;
+    }
+
+    .task-tags {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-top: 6px;
+    }
+
+    .tag-badge {
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      color: white;
+      display: inline-block;
+    }
+
+    .more-tasks {
+      padding: 12px 16px;
+      text-align: center;
+      color: #999;
+      font-size: 12px;
+      background: #f8f9fa;
+      border-top: 1px solid #e0e0e0;
+    }
+
+    .action-buttons {
+      display: flex;
+      gap: 12px;
+      justify-content: flex-end;
+      margin-top: 24px;
+    }
+
+    .loading-spinner {
+      display: none;
+      text-align: center;
+      padding: 40px;
+    }
+
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid #e0e0e0;
+      border-top-color: #667eea;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 16px;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .error-message {
+      display: none;
+      background: #ffe0e0;
+      color: #d32f2f;
+      padding: 12px 16px;
+      border-radius: 6px;
+      margin-bottom: 20px;
+      font-size: 13px;
+      border-left: 4px solid #d32f2f;
+      animation: slideIn 0.3s ease;
+    }
+
+    .error-message.show {
+      display: block;
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateX(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+
+    .info-text {
+      font-size: 13px;
+      color: #666;
+      margin-bottom: 12px;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+<div class="modal">
+  <div class="modal-header">
+    <h1>📊 YouTrack Importer</h1>
+  </div>
+
+  <div class="modal-body">
+    <div class="error-message" id="errorMessage"></div>
+
+    <!-- STEP 1: Upload -->
+    <div class="section" id="uploadSection">
+      <div class="section-title">Étape 1: Fichier CSV</div>
+      <div class="file-input-group">
+        <div class="file-input-wrapper">
+          <label class="file-label" for="fileInput">
+            📁 <span id="fileLabel">Choisir un fichier</span>
+          </label>
+          <input type="file" id="fileInput" accept=".csv" />
+        </div>
+        <button id="parseBtn">Analyser</button>
+      </div>
+    </div>
+
+    <!-- STEP 2: Preview -->
+    <div class="section hidden" id="previewSection">
+      <div class="section-title">Étape 2: Aperçu</div>
+
+      <div class="preview-stats">
+        <div class="stat-card">
+          <div class="stat-number" id="taskCount">0</div>
+          <div class="stat-label">Tâches</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number" id="projectCount">0</div>
+          <div class="stat-label">Projets</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number" id="tagCount">0</div>
+          <div class="stat-label">Tags</div>
+        </div>
+      </div>
+
+      <div class="task-list" id="taskPreview"></div>
+
+      <div class="action-buttons">
+        <button id="cancelBtn" class="btn-secondary">Annuler</button>
+        <button id="importBtn">✨ Importer</button>
+      </div>
+    </div>
+
+    <!-- Loading -->
+    <div class="loading-spinner" id="loadingSection">
+      <div class="spinner"></div>
+      <p>Importation en cours...</p>
+    </div>
+  </div>
+</div>
+
+<script>
+  let parsedTasks = [];
+  let parseStats = {};
+  let allTagsWithColors = {};
+
+  function showError(msg) {
+    const el = document.getElementById('errorMessage');
+    el.textContent = msg;
+    el.classList.add('show');
+    setTimeout(() => el.classList.remove('show'), 5000);
+  }
+
+  function escapeHtml(text) {
+    const map = {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'};
+    return text.replace(/[&<>"']/g, m => map[m]);
+  }
+
+  // File input
+  document.getElementById('fileInput').addEventListener('change', (e) => {
+    const name = e.target.files[0]?.name || 'Choisir un fichier';
+    document.getElementById('fileLabel').textContent = name;
+  });
+
+  // Parse button
+  document.getElementById('parseBtn').addEventListener('click', async () => {
+    const file = document.getElementById('fileInput').files[0];
+    if (!file) {
+      showError('Sélectionnez un fichier CSV');
+      return;
+    }
+
+    try {
+      const text = await file.text();
+      parsedTasks = window.parent.parseCSV(text);
+      parseStats = window.parent.calculateStats(parsedTasks);
+      allTagsWithColors = await window.parent.getAllTagsWithColors();
+
+      document.getElementById('uploadSection').classList.add('hidden');
+      showPreview();
+    } catch (error) {
+      showError(error.message);
+    }
+  });
+
+  function showPreview() {
+    document.getElementById('previewSection').classList.remove('hidden');
+
+    document.getElementById('taskCount').textContent = parseStats.totalTasks;
+    document.getElementById('projectCount').textContent = parseStats.projectCount;
+    document.getElementById('tagCount').textContent = parseStats.tagCount;
+
+    const preview = document.getElementById('taskPreview');
+    const tasksToShow = parsedTasks.slice(0, 10);
+
+    preview.innerHTML = tasksToShow.map((task) => {
+      const tagHtml = task.tags.map((tagName) => {
+        const tagObj = allTagsWithColors.find(t => t.title === tagName);
+        const color = tagObj?.color || '#667eea';
+        return `<span class="tag-badge" style="background-color: ${color};">#${escapeHtml(tagName)}</span>`;
+      }).join('');
+
+      return `
+          <div class="task-item">
+            <div class="task-title">📌 ${escapeHtml(task.title)}</div>
+            <div class="task-meta">
+              <strong>Projet:</strong> ${escapeHtml(task.project)}
+              ${task.state ? ` • <strong>État:</strong> ${escapeHtml(task.state)}` : ''}
+            </div>
+            ${tagHtml ? `<div class="task-tags">${tagHtml}</div>` : ''}
+          </div>
+        `;
+    }).join('');
+
+    if (parsedTasks.length > 10) {
+      preview.innerHTML += `<div class="more-tasks">⋯ et ${parsedTasks.length - 10} autre${parsedTasks.length - 10 > 1 ? 's' : ''} tâche${parsedTasks.length - 10 > 1 ? 's' : ''}</div>`;
+    }
+  }
+
+  document.getElementById('cancelBtn').addEventListener('click', () => {
+    document.getElementById('fileInput').value = '';
+    document.getElementById('fileLabel').textContent = 'Choisir un fichier';
+    document.getElementById('uploadSection').classList.remove('hidden');
+    document.getElementById('previewSection').classList.add('hidden');
+    parsedTasks = [];
+    parseStats = {};
+  });
+
+  document.getElementById('importBtn').addEventListener('click', async () => {
+    try {
+      document.getElementById('previewSection').classList.add('hidden');
+      document.getElementById('loadingSection').style.display = 'block';
+
+      await window.parent.importTasks(parsedTasks);
+
+      PluginAPI.showSnack({
+        msg: `✅ ${parsedTasks.length} tâche(s) importée(s)!`,
+        type: 'SUCCESS',
+      });
+
+      document.getElementById('fileInput').value = '';
+      document.getElementById('fileLabel').textContent = 'Choisir un fichier';
+      document.getElementById('uploadSection').classList.remove('hidden');
+      document.getElementById('loadingSection').style.display = 'none';
+      parsedTasks = [];
+      parseStats = {};
+    } catch (error) {
+      document.getElementById('loadingSection').style.display = 'none';
+      document.getElementById('previewSection').classList.remove('hidden');
+      showError(error.message);
+    }
+  });
+</script>
+</body>
+</html>
