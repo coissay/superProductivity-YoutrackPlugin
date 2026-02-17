@@ -301,16 +301,34 @@ async function createStateTags(stateNames) {
     const existingTag = existingTags.find((t) => t.title === stateName && !t.parentId);
 
     if (!existingTag) {
-      const color = getRandomColor();
-
-      tagId = await PluginAPI.addTag({
-        title: stateName,
-        color: color,
-        theme: {
-          primary: color,
-          isAutoContrast: true,
-        },
-      });
+      if (stateName.toLowerCase() === 'in progress') {
+        const defaultInProgressTag = existingTags.find(
+            (t) => t.title.toLowerCase() === 'in progress' && !t.parentId
+        );
+        if (defaultInProgressTag) {
+          tagId = defaultInProgressTag.id;
+        } else {
+          const color = getRandomColor();
+          tagId = await PluginAPI.addTag({
+            title: stateName,
+            color: color,
+            theme: {
+              primary: color,
+              isAutoContrast: true,
+            },
+          });
+        }
+      } else {
+        const color = getRandomColor();
+        tagId = await PluginAPI.addTag({
+          title: stateName,
+          color: color,
+          theme: {
+            primary: color,
+            isAutoContrast: true,
+          },
+        });
+      }
     } else {
       tagId = existingTag.id;
     }
