@@ -1,395 +1,219 @@
-
 <!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8" />
-  <title>YouTrack CSV Importer</title>
+  <title>YouTrack Importer</title>
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-
-    html, body {
-      width: 100%;
-      height: 100%;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-    }
-
-    body {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 20px;
-    }
-
-    .modal {
-      background: white;
-      border-radius: 16px;
-      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-      width: 100%;
-      max-width: 600px;
-      max-height: 90vh;
-      overflow-y: auto;
-      animation: slideUp 0.4s ease;
-    }
-
-    @keyframes slideUp {
-      from {
-        opacity: 0;
-        transform: translateY(30px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-
-    .modal-header {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-      padding: 32px 24px;
-      border-radius: 16px 16px 0 0;
-    }
-
-    .modal-header h1 {
-      font-size: 24px;
-      font-weight: 700;
-      margin: 0;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-
-    .modal-body {
-      padding: 32px 24px;
-    }
-
-    .section {
-      margin-bottom: 28px;
-    }
-
-    .section:last-child {
-      margin-bottom: 0;
-    }
-
-    .section-title {
-      font-size: 14px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      color: #667eea;
-      margin-bottom: 12px;
-    }
-
-    .file-input-group {
-      position: relative;
-      display: flex;
-      gap: 12px;
-    }
-
-    .file-input-wrapper {
-      flex: 1;
-      position: relative;
-      overflow: hidden;
-    }
-
-    input[type="file"] {
-      display: none;
-    }
-
-    .file-label {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      padding: 16px 20px;
-      border: 2px dashed #ddd;
-      border-radius: 8px;
-      background: #f8f9fa;
-      cursor: pointer;
-      transition: all 0.3s ease;
-      font-weight: 500;
-      color: #666;
-    }
-
-    .file-label:hover {
-      border-color: #667eea;
-      background: #f0f1ff;
-      color: #667eea;
-    }
-
-    .file-name {
-      display: inline-block;
-      color: #667eea;
-      font-weight: 600;
-    }
-
-
-    button {
-      padding: 12px 24px !important;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
-      color: white !important;
-      border: none !important;
-      border-radius: 8px !important;
-      font-weight: 600 !important;
-      font-size: 14px !important;
-      cursor: pointer !important;
-      transition: transform 0.3s ease, box-shadow 0.3s ease, filter 0.3s ease !important;
-      white-space: nowrap !important;
-    }
-
-    button:hover:not(:disabled) {
-      transform: translateY(-2px) !important;
-      box-shadow: 0 8px 16px rgba(102, 126, 234, 0.4) !important;
-      filter: brightness(1.1) !important;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
-      color: white !important;
-    }
-
-    button:disabled {
-      opacity: 0.5 !important;
-      cursor: not-allowed !important;
-      transform: none !important;
-    }
-
-    button.btn-secondary {
-      background: #e0e0e0 !important;
-      color: #333 !important;
-    }
-
-    button.btn-secondary:hover:not(:disabled) {
-      background: #d0d0d0 !important;
-      filter: brightness(0.9) !important;
-      transform: translateY(-2px) !important;
-      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1) !important;
-      color: #333 !important;
-    }
-
-    button.btn-danger {
-      background: #ff6b6b !important;
-      color: white !important;
-    }
-
-    button.btn-danger:hover:not(:disabled) {
-      background: #ff6b6b !important;
-      filter: brightness(1.1) !important;
-      transform: translateY(-2px) !important;
-      box-shadow: 0 8px 16px rgba(255, 107, 107, 0.4) !important;
-      color: white !important;
-    }
-
-    .hidden {
-      display: none !important;
-    }
-
-    .preview-stats {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 12px;
-      margin-bottom: 24px;
-    }
-
-    .stat-card {
-      background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
-      padding: 16px;
-      border-radius: 8px;
-      text-align: center;
-      border-left: 4px solid #667eea;
-    }
-
-    .stat-number {
-      font-size: 28px;
-      font-weight: 700;
-      color: #667eea;
-    }
-
-    .stat-label {
-      font-size: 12px;
-      color: #999;
-      margin-top: 4px;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-
-    .task-list {
-      max-height: 300px;
-      overflow-y: auto;
-      border: 1px solid #e0e0e0;
-      border-radius: 8px;
-      margin-bottom: 20px;
-    }
-
-    .task-item {
-      padding: 12px 16px;
-      border-bottom: 1px solid #e0e0e0;
-      transition: background 0.2s ease;
-    }
-
-    .task-item:hover {
-      background: #f8f9fa;
-    }
-
-    .task-item:last-child {
-      border-bottom: none;
-    }
-
-    .task-title {
-      font-weight: 600;
-      color: #333;
-      font-size: 13px;
-      margin-bottom: 4px;
-    }
-
-    .task-meta {
-      font-size: 12px;
-      color: #999;
-      margin-bottom: 6px;
-    }
-
-    .task-tags {
-      display: flex;
-      gap: 6px;
-      flex-wrap: wrap;
-      margin-top: 6px;
-    }
-
-    .tag-badge {
-      padding: 4px 8px;
-      border-radius: 4px;
-      font-size: 11px;
-      font-weight: 600;
-      color: white;
-      display: inline-block;
-    }
-
-    .more-tasks {
-      padding: 12px 16px;
-      text-align: center;
-      color: #999;
-      font-size: 12px;
-      background: #f8f9fa;
-      border-top: 1px solid #e0e0e0;
-    }
-
-    .action-buttons {
-      display: flex;
-      gap: 12px;
-      justify-content: flex-end;
-      margin-top: 24px;
-    }
-
-    .loading-spinner {
-      display: none;
-      text-align: center;
-      padding: 40px;
-    }
-
-    .spinner {
-      width: 40px;
-      height: 40px;
-      border: 3px solid #e0e0e0;
-      border-top-color: #667eea;
-      border-radius: 50%;
-      animation: spin 1s linear infinite;
-      margin: 0 auto 16px;
-    }
-
-    @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
-
-    .error-message {
-      display: none;
-      background: #ffe0e0;
-      color: #d32f2f;
-      padding: 12px 16px;
-      border-radius: 6px;
-      margin-bottom: 20px;
-      font-size: 13px;
-      border-left: 4px solid #d32f2f;
-      animation: slideIn 0.3s ease;
-    }
-
-    .error-message.show {
-      display: block;
-    }
-
-    @keyframes slideIn {
-      from {
-        opacity: 0;
-        transform: translateX(-10px);
-      }
-      to {
-        opacity: 1;
-        transform: translateX(0);
-      }
-    }
-
-    .info-text {
-      font-size: 13px;
-      color: #666;
-      margin-bottom: 12px;
-      line-height: 1.5;
-    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    body { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; padding: 20px; }
+    .modal { background: white; border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); width: 100%; max-width: 600px; height: 85vh; display: flex; flex-direction: column; animation: slideUp 0.4s ease; overflow: hidden; }
+    @keyframes slideUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
+    .modal-header { background: #fafbff; color: #333; padding: 20px 24px 0; border-radius: 16px 16px 0 0; flex: 0 0 auto; }
+    .modal-header h1 { font-size: 22px; font-weight: 700; margin: 0 0 16px; display: flex; align-items: center; gap: 12px; color: #333; }
+    .tabs { display: flex; gap: 20px; border-bottom: 1px solid #e6e6e6; }
+    .tab-button { padding: 10px 2px; border: none; background: none; cursor: pointer; font-weight: 600; color: #999; position: relative; font-size: 14px; }
+    .tab-button.active { color: #667eea; }
+    .tab-button.active::after { content: ''; position: absolute; bottom: -1px; left: 0; right: 0; height: 2px; background: #667eea; }
+    .tab-content { display: none; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+    .tab-content.active { display: flex; }
+    .tab-scroll { flex: 1 1 auto; overflow-y: auto; padding: 24px; min-height: 0; }
+    .tab-footer { flex: 0 0 auto; padding: 16px 24px; border-top: 1px solid #eee; background: #fafbff; }
+    .file-input-group { display: flex; gap: 12px; }
+    .file-input-wrapper { flex: 1; position: relative; overflow: hidden; }
+    input[type="file"] { display: none; }
+    .file-label { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 16px 20px; border: 2px dashed #ddd; border-radius: 8px; background: #f8f9fa; cursor: pointer; transition: all 0.3s ease; font-weight: 500; color: #666; }
+    .file-label:hover { border-color: #667eea; background: #f0f1ff; color: #667eea; }
+    button { padding: 11px 20px !important; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important; color: white !important; border: none !important; border-radius: 8px !important; font-weight: 600 !important; font-size: 13px !important; cursor: pointer !important; transition: transform 0.2s ease, box-shadow 0.2s ease !important; white-space: nowrap !important; }
+    button:hover:not(:disabled) { transform: translateY(-1px) !important; box-shadow: 0 6px 14px rgba(102, 126, 234, 0.4) !important; filter: brightness(1.1) !important; }
+    button:disabled { opacity: 0.5 !important; cursor: not-allowed !important; transform: none !important; }
+    button.btn-secondary { background: #e0e0e0 !important; color: #333 !important; }
+    button.btn-secondary:hover:not(:disabled) { background: #d0d0d0 !important; box-shadow: 0 6px 14px rgba(0,0,0,0.15) !important; }
+    .hidden { display: none !important; }
+    .preview-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 24px; }
+    .stat-card { background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%); padding: 16px; border-radius: 8px; text-align: center; border-left: 4px solid #667eea; }
+    .stat-number { font-size: 28px; font-weight: 700; color: #667eea; }
+    .stat-label { font-size: 12px; color: #999; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .task-list { max-height: 240px; overflow-y: auto; border: 1px solid #e0e0e0; border-radius: 8px; margin-bottom: 8px; }
+    .task-item { padding: 12px 16px; border-bottom: 1px solid #e0e0e0; }
+    .task-item:hover { background: #f8f9fa; }
+    .task-item:last-child { border-bottom: none; }
+    .task-title { font-weight: 600; color: #333; font-size: 13px; margin-bottom: 4px; }
+    .task-meta { font-size: 12px; color: #999; margin-bottom: 6px; }
+    .task-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+    .tag-badge { padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; color: white; display: inline-block; }
+    .more-tasks { padding: 12px 16px; text-align: center; color: #999; font-size: 12px; background: #f8f9fa; border-top: 1px solid #e0e0e0; }
+    .action-buttons { display: flex; flex-wrap: wrap; gap: 10px; }
+    .loading-spinner { display: none; text-align: center; padding: 24px; }
+    .loading-spinner.show { display: block; }
+    .spinner { width: 32px; height: 32px; border: 3px solid #e0e0e0; border-top-color: #667eea; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 12px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .error-message { display: none; background: #ffe0e0; color: #d32f2f; padding: 10px 14px; border-radius: 6px; margin-bottom: 14px; font-size: 13px; border-left: 4px solid #d32f2f; }
+    .error-message.show { display: block; }
+    .section { margin-bottom: 22px; }
+    .section:last-child { margin-bottom: 0; }
+    .section-title { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #667eea; margin-bottom: 10px; }
+    .form-group { margin-bottom: 16px; }
+    .form-group label { display: block; font-weight: 600; margin-bottom: 6px; color: #333; font-size: 13px; }
+    .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 9px 11px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; font-family: inherit; }
+    .form-group textarea { resize: vertical; }
+    .form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline: none; border-color: #667eea; box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1); }
+    .form-help { font-size: 11px; color: #999; margin-top: 5px; }
+    .form-help a { color: #667eea; text-decoration: none; }
+    .sync-status { display: none; background: #f0f1ff; border-left: 4px solid #667eea; padding: 10px 14px; border-radius: 6px; margin-top: 12px; font-size: 13px; }
+    .sync-status.show { display: block; }
+    .sync-status.success { background: #e8f5e9; border-left-color: #4caf50; }
+    .sync-status.error { background: #ffebee; border-left-color: #f44336; }
+    .checkbox-wrapper { display: flex; align-items: center; gap: 8px; }
+    .checkbox-wrapper input[type="checkbox"] { width: auto; margin: 0; }
+    .checkbox-wrapper label { margin: 0; font-weight: 500; cursor: pointer; }
+    details { border: 1px solid #e6e6e6; border-radius: 8px; margin-bottom: 16px; }
+    details summary { padding: 10px 14px; cursor: pointer; font-weight: 600; font-size: 13px; color: #555; list-style: none; display: flex; align-items: center; justify-content: space-between; }
+    details summary::-webkit-details-marker { display: none; }
+    details summary::after { content: '▾'; transition: transform 0.2s ease; color: #999; }
+    details[open] summary::after { transform: rotate(180deg); }
+    details .details-body { padding: 0 14px 14px; }
   </style>
 </head>
 <body>
 <div class="modal">
   <div class="modal-header">
-    <h1>📊 YouTrack Importer</h1>
+    <h1>🔄 YouTrack Importer</h1>
+    <div class="tabs">
+      <button class="tab-button active" data-tab="manual">📁 Manual Import</button>
+      <button class="tab-button" data-tab="youtrack">🔗 YouTrack Sync</button>
+    </div>
   </div>
 
-  <div class="modal-body">
-    <div class="error-message" id="errorMessage"></div>
-
-    <!-- STEP 1: Upload -->
-    <div class="section" id="uploadSection">
-      <div class="section-title">Étape 1: Fichier CSV</div>
-      <div class="file-input-group">
-        <div class="file-input-wrapper">
-          <label class="file-label" for="fileInput">
-            📁 <span id="fileLabel">Choisir un fichier</span>
-          </label>
-          <input type="file" id="fileInput" accept=".csv" />
+  <!-- TAB: CSV IMPORT -->
+  <div class="tab-content active" id="tab-manual">
+    <div class="tab-scroll">
+      <div class="error-message" id="errorMessageManual"></div>
+      <div class="section" id="uploadSection">
+        <div class="section-title">Step 1: CSV File</div>
+        <div class="file-input-group">
+          <div class="file-input-wrapper">
+            <label class="file-label" for="fileInput">📁 <span id="fileLabel">Choose a file</span></label>
+            <input type="file" id="fileInput" accept=".csv" />
+          </div>
+          <button id="parseBtn">Parse</button>
         </div>
-        <button id="parseBtn">Analyser</button>
+      </div>
+      <div class="section hidden" id="previewSection">
+        <div class="section-title">Step 2: Preview</div>
+        <div class="preview-stats">
+          <div class="stat-card"><div class="stat-number" id="taskCount">0</div><div class="stat-label">Tasks</div></div>
+          <div class="stat-card"><div class="stat-number" id="projectCount">0</div><div class="stat-label">Projects</div></div>
+          <div class="stat-card"><div class="stat-number" id="tagCount">0</div><div class="stat-label">Tags</div></div>
+        </div>
+        <div class="task-list" id="taskPreview"></div>
+      </div>
+      <div class="loading-spinner" id="loadingSection">
+        <div class="spinner"></div>
+        <p>Importing...</p>
       </div>
     </div>
-
-    <!-- STEP 2: Preview -->
-    <div class="section hidden" id="previewSection">
-      <div class="section-title">Étape 2: Aperçu</div>
-
-      <div class="preview-stats">
-        <div class="stat-card">
-          <div class="stat-number" id="taskCount">0</div>
-          <div class="stat-label">Tâches</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-number" id="projectCount">0</div>
-          <div class="stat-label">Projets</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-number" id="tagCount">0</div>
-          <div class="stat-label">Tags</div>
-        </div>
-      </div>
-
-      <div class="task-list" id="taskPreview"></div>
-
+    <div class="tab-footer">
       <div class="action-buttons">
-        <button id="cancelBtn" class="btn-secondary">Annuler</button>
-        <button id="importBtn">✨ Importer</button>
+        <button id="cancelBtn" class="btn-secondary hidden">Cancel</button>
+        <button id="importBtn" class="hidden">✨ Import</button>
       </div>
     </div>
+  </div>
 
-    <!-- Loading -->
-    <div class="loading-spinner" id="loadingSection">
-      <div class="spinner"></div>
-      <p>Importation en cours...</p>
+  <!-- TAB: YOUTRACK SYNC -->
+  <div class="tab-content" id="tab-youtrack">
+    <div class="tab-scroll">
+      <div class="section">
+        <div class="section-title">Connection</div>
+        <div class="form-group">
+          <label for="youtrackToken">YouTrack authentication token</label>
+          <input type="password" id="youtrackToken" placeholder="perm:XXXXXXXXXXXXXXXX" />
+          <div class="form-help">📋 Generate a permanent token in <a href="https://youtrack.nperf.org/settings/tokens" target="_blank">YouTrack Settings</a></div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Ticket filter</div>
+        <div class="form-group">
+          <label for="youtrackQuery">YouTrack query</label>
+          <textarea id="youtrackQuery" rows="3" placeholder="Ex: Level: -Epic,-{Big Epic},-Goal project: {Web sites &amp; services} State: -Canceled -Done Sprints: {CURRENT_SPRINT}"></textarea>
+          <div class="form-help">Standard YouTrack search syntax. Use <code>{CURRENT_SPRINT}</code> to automatically insert the current sprint (see Automatic sprint below).</div>
+        </div>
+        <div class="form-group">
+          <label for="youtrackAssigneeFilter">Assignee (optional)</label>
+          <input type="text" id="youtrackAssigneeFilter" placeholder="ex: YCD" />
+          <div class="form-help">If set, an <code>Assignee: ...</code> filter is automatically appended to the query above.</div>
+        </div>
+      </div>
+
+      <details id="sprintDetails">
+        <summary>⚙️ Automatic sprint ({CURRENT_SPRINT})</summary>
+        <div class="details-body">
+          <div class="form-group">
+            <div class="checkbox-wrapper">
+              <input type="checkbox" id="enableSprintAuto" />
+              <label for="enableSprintAuto">Enable automatic sprint</label>
+            </div>
+            <div class="form-help">If disabled, <code>{CURRENT_SPRINT}</code> is not substituted in the query (useful to avoid clashing with a sprint filter already hardcoded).</div>
+          </div>
+          <div class="form-group">
+            <label for="sprintFormat">Sprint tag format</label>
+            <input type="text" id="sprintFormat" placeholder="Ex: {YEAR_SHORT}S{SPRINT_NUM_PADDED}" />
+            <div class="form-help">
+              Placeholders: <code>{YEAR}</code> (2026), <code>{YEAR_SHORT}</code> (26),
+              <code>{SPRINT_NUM}</code> (8), <code>{SPRINT_NUM_PADDED}</code> (08) — e.g.: <code>26S08</code>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="sprintDuration">Sprint duration (working days)</label>
+            <input type="number" id="sprintDuration" min="1" max="60" placeholder="15" />
+          </div>
+          <div class="form-group">
+            <label for="sprintStartDate">Start date (Monday of sprint #1)</label>
+            <input type="date" id="sprintStartDate" />
+          </div>
+          <div class="action-buttons">
+            <button id="testSprintConfigBtn" class="btn-secondary">🧪 Test configuration</button>
+          </div>
+          <div class="sync-status" id="sprintConfigResult"></div>
+        </div>
+      </details>
+
+      <details id="scheduleDetails">
+        <summary>🕒 Automatic sync</summary>
+        <div class="details-body">
+          <div class="form-group">
+            <label for="syncInterval">Sync interval</label>
+            <select id="syncInterval">
+              <option value="1">Every hour</option>
+              <option value="2" selected>Every 2 hours</option>
+              <option value="4">Every 4 hours</option>
+              <option value="8">Every 8 hours</option>
+              <option value="24">Daily</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <div class="checkbox-wrapper">
+              <input type="checkbox" id="enableAutoSync" checked />
+              <label for="enableAutoSync">Enable automatic sync</label>
+            </div>
+          </div>
+        </div>
+      </details>
+
+      <div class="loading-spinner" id="syncLoadingSection">
+        <div class="spinner"></div>
+        <p>Syncing...</p>
+      </div>
+    </div>
+    <div class="tab-footer">
+      <div class="action-buttons">
+        <button id="testConnectionBtn" class="btn-secondary">🧪 Test connection</button>
+        <button id="syncNowBtn">🔄 Sync now</button>
+        <button id="saveConfigBtn">💾 Save</button>
+      </div>
+      <div class="sync-status" id="syncStatus"></div>
     </div>
   </div>
 </div>
@@ -400,7 +224,7 @@
   let allTagsWithColors = {};
 
   function showError(msg) {
-    const el = document.getElementById('errorMessage');
+    const el = document.getElementById('errorMessageManual');
     el.textContent = msg;
     el.classList.add('show');
     setTimeout(() => el.classList.remove('show'), 5000);
@@ -411,26 +235,143 @@
     return text.replace(/[&<>"']/g, m => map[m]);
   }
 
-  // File input
-  document.getElementById('fileInput').addEventListener('change', (e) => {
-    const name = e.target.files[0]?.name || 'Choisir un fichier';
-    document.getElementById('fileLabel').textContent = name;
+  function showSyncStatus(message, type = 'info') {
+    const el = document.getElementById('syncStatus');
+    const icons = { info: '✓', success: '✅', error: '❌' };
+    el.innerHTML = `<span>${icons[type]}</span> ${message}`;
+    el.className = `sync-status show ${type}`;
+  }
+
+  document.querySelectorAll('.tab-button').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const tabName = e.target.dataset.tab;
+      document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      e.target.classList.add('active');
+      document.getElementById(`tab-${tabName}`).classList.add('active');
+    });
   });
 
-  // Parse button
-  document.getElementById('parseBtn').addEventListener('click', async () => {
-    const file = document.getElementById('fileInput').files[0];
-    if (!file) {
-      showError('Sélectionnez un fichier CSV');
+  function getFormConfig() {
+    return {
+      token: document.getElementById('youtrackToken').value.trim(),
+      query: document.getElementById('youtrackQuery').value.trim(),
+      assignee: document.getElementById('youtrackAssigneeFilter').value.trim(),
+      syncIntervalHours: parseInt(document.getElementById('syncInterval').value),
+      enableAutoSync: document.getElementById('enableAutoSync').checked,
+      sprintFormat: document.getElementById('sprintFormat').value.trim(),
+      sprintDurationDays: parseInt(document.getElementById('sprintDuration').value) || undefined,
+      sprintStartDate: document.getElementById('sprintStartDate').value,
+      sprintAutoEnabled: document.getElementById('enableSprintAuto').checked,
+    };
+  }
+
+  window.addEventListener('load', async () => {
+    try {
+      const config = await window.parent.loadConfig();
+      if (config.token) {
+        document.getElementById('youtrackToken').value = config.token;
+        document.getElementById('youtrackQuery').value = config.query || '';
+        document.getElementById('youtrackAssigneeFilter').value = config.assignee || '';
+        document.getElementById('syncInterval').value = config.syncIntervalHours || 2;
+        document.getElementById('enableAutoSync').checked = config.enableAutoSync !== false;
+      }
+      document.getElementById('sprintFormat').value = config.sprintFormat || '{YEAR_SHORT}S{SPRINT_NUM_PADDED}';
+      document.getElementById('sprintDuration').value = config.sprintDurationDays || 15;
+      document.getElementById('sprintStartDate').value = config.sprintStartDate || '';
+      document.getElementById('enableSprintAuto').checked = config.sprintAutoEnabled === true;
+    } catch (error) {
+      console.error('Error loading config:', error);
+    }
+  });
+
+  function showSprintConfigResult(message, type = 'success') {
+    const el = document.getElementById('sprintConfigResult');
+    el.innerHTML = message;
+    el.className = `sync-status show ${type}`;
+  }
+
+  document.getElementById('testSprintConfigBtn').addEventListener('click', async () => {
+    const format = document.getElementById('sprintFormat').value.trim();
+    const duration = parseInt(document.getElementById('sprintDuration').value);
+    const startDate = document.getElementById('sprintStartDate').value;
+
+    if (!startDate) {
+      showSprintConfigResult('Enter a start date to test the configuration', 'error');
       return;
     }
 
+    const titles = await window.parent.previewSprintTitles(format, duration, startDate);
+    showSprintConfigResult(`<strong>Current sprint:</strong> ${titles[0]}<br><strong>Next:</strong> ${titles.slice(1).join(', ')}`, 'success');
+  });
+
+  document.getElementById('saveConfigBtn').addEventListener('click', async () => {
+    const config = getFormConfig();
+    if (!config.token || !config.query) {
+      showSyncStatus('Token and Query are required', 'error');
+      return;
+    }
+    try {
+      await window.parent.saveConfig(config);
+      showSyncStatus('Configuration saved!', 'success');
+    } catch (error) {
+      showSyncStatus(error.message, 'error');
+    }
+  });
+
+  document.getElementById('testConnectionBtn').addEventListener('click', async () => {
+    const config = getFormConfig();
+    if (!config.token || !config.query) {
+      showSyncStatus('Token and Query are required', 'error');
+      return;
+    }
+    try {
+      document.getElementById('syncLoadingSection').classList.add('show');
+      const resolvedQuery = await window.parent.resolveYouTrackQuery(config.query, config);
+      const tasks = await window.parent.fetchFromYouTrack(config.token, resolvedQuery);
+      document.getElementById('syncLoadingSection').classList.remove('show');
+      showSyncStatus(`Connection successful! ${tasks.length} task(s) found`, 'success');
+    } catch (error) {
+      document.getElementById('syncLoadingSection').classList.remove('show');
+      showSyncStatus(error.message, 'error');
+    }
+  });
+
+  document.getElementById('syncNowBtn').addEventListener('click', async () => {
+    const config = getFormConfig();
+    if (!config.token || !config.query) {
+      showSyncStatus('Token and Query are required', 'error');
+      return;
+    }
+    try {
+      document.getElementById('syncLoadingSection').classList.add('show');
+      const resolvedQuery = await window.parent.resolveYouTrackQuery(config.query, config);
+      const tasks = await window.parent.fetchFromYouTrack(config.token, resolvedQuery);
+      await window.parent.importTasks(tasks);
+      document.getElementById('syncLoadingSection').classList.remove('show');
+      showSyncStatus(`✅ ${tasks.length} task(s) synced!`, 'success');
+    } catch (error) {
+      document.getElementById('syncLoadingSection').classList.remove('show');
+      showSyncStatus(error.message, 'error');
+    }
+  });
+
+  document.getElementById('fileInput').addEventListener('change', (e) => {
+    const name = e.target.files[0]?.name || 'Choose a file';
+    document.getElementById('fileLabel').textContent = name;
+  });
+
+  document.getElementById('parseBtn').addEventListener('click', async () => {
+    const file = document.getElementById('fileInput').files[0];
+    if (!file) {
+      showError('Select a CSV file');
+      return;
+    }
     try {
       const text = await file.text();
       parsedTasks = window.parent.parseCSV(text);
       parseStats = window.parent.calculateStats(parsedTasks);
       allTagsWithColors = await window.parent.getAllTagsWithColors();
-
       document.getElementById('uploadSection').classList.add('hidden');
       showPreview();
     } catch (error) {
@@ -440,43 +381,33 @@
 
   function showPreview() {
     document.getElementById('previewSection').classList.remove('hidden');
-
+    document.getElementById('cancelBtn').classList.remove('hidden');
+    document.getElementById('importBtn').classList.remove('hidden');
     document.getElementById('taskCount').textContent = parseStats.totalTasks;
     document.getElementById('projectCount').textContent = parseStats.projectCount;
     document.getElementById('tagCount').textContent = parseStats.tagCount;
-
     const preview = document.getElementById('taskPreview');
     const tasksToShow = parsedTasks.slice(0, 10);
-
     preview.innerHTML = tasksToShow.map((task) => {
       const tagHtml = task.tags.map((tagName) => {
         const tagObj = allTagsWithColors.find(t => t.title === tagName);
         const color = tagObj?.color || '#667eea';
         return `<span class="tag-badge" style="background-color: ${color};">#${escapeHtml(tagName)}</span>`;
       }).join('');
-
-      return `
-          <div class="task-item">
-            <div class="task-title">📌 ${escapeHtml(task.title)}</div>
-            <div class="task-meta">
-              <strong>Projet:</strong> ${escapeHtml(task.project)}
-              ${task.state ? ` • <strong>État:</strong> ${escapeHtml(task.state)}` : ''}
-            </div>
-            ${tagHtml ? `<div class="task-tags">${tagHtml}</div>` : ''}
-          </div>
-        `;
+      return `<div class="task-item"><div class="task-title">📌 ${escapeHtml(task.title)}</div><div class="task-meta"><strong>Project:</strong> ${escapeHtml(task.project)} ${task.state ? ` • <strong>State:</strong> ${escapeHtml(task.state)}` : ''}</div>${tagHtml ? `<div class="task-tags">${tagHtml}</div>` : ''}</div>`;
     }).join('');
-
     if (parsedTasks.length > 10) {
-      preview.innerHTML += `<div class="more-tasks">⋯ et ${parsedTasks.length - 10} autre${parsedTasks.length - 10 > 1 ? 's' : ''} tâche${parsedTasks.length - 10 > 1 ? 's' : ''}</div>`;
+      preview.innerHTML += `<div class="more-tasks">⋯ and ${parsedTasks.length - 10} more task(s)</div>`;
     }
   }
 
   document.getElementById('cancelBtn').addEventListener('click', () => {
     document.getElementById('fileInput').value = '';
-    document.getElementById('fileLabel').textContent = 'Choisir un fichier';
+    document.getElementById('fileLabel').textContent = 'Choose a file';
     document.getElementById('uploadSection').classList.remove('hidden');
     document.getElementById('previewSection').classList.add('hidden');
+    document.getElementById('cancelBtn').classList.add('hidden');
+    document.getElementById('importBtn').classList.add('hidden');
     parsedTasks = [];
     parseStats = {};
   });
@@ -484,23 +415,19 @@
   document.getElementById('importBtn').addEventListener('click', async () => {
     try {
       document.getElementById('previewSection').classList.add('hidden');
-      document.getElementById('loadingSection').style.display = 'block';
-
+      document.getElementById('loadingSection').classList.add('show');
       await window.parent.importTasks(parsedTasks);
-
-      PluginAPI.showSnack({
-        msg: `✅ ${parsedTasks.length} tâche(s) importée(s)!`,
-        type: 'SUCCESS',
-      });
-
+      PluginAPI.showSnack({ msg: `✅ ${parsedTasks.length} task(s) imported!`, type: 'SUCCESS' });
       document.getElementById('fileInput').value = '';
-      document.getElementById('fileLabel').textContent = 'Choisir un fichier';
+      document.getElementById('fileLabel').textContent = 'Choose a file';
       document.getElementById('uploadSection').classList.remove('hidden');
-      document.getElementById('loadingSection').style.display = 'none';
+      document.getElementById('loadingSection').classList.remove('show');
+      document.getElementById('cancelBtn').classList.add('hidden');
+      document.getElementById('importBtn').classList.add('hidden');
       parsedTasks = [];
       parseStats = {};
     } catch (error) {
-      document.getElementById('loadingSection').style.display = 'none';
+      document.getElementById('loadingSection').classList.remove('show');
       document.getElementById('previewSection').classList.remove('hidden');
       showError(error.message);
     }
