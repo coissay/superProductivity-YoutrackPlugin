@@ -190,8 +190,9 @@ To report a bug or suggest an improvement:
 
 ---
 
-**Version**: 1.2.0  
+**Version**: 1.3.0  
 **Compatibility**: SuperProductivity 14.0.0+  
-**Author**: ycoissard
+**Author**: COISSARD Yoann
 
 Happy importing! 🚀
+
