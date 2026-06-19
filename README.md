@@ -1,67 +1,90 @@
-# YouTrack CSV Importer for SuperProductivity
+# YouTrack Importer for SuperProductivity
 
-SuperProductivity plugin to import your YouTrack issues exported as CSV directly into your SuperProductivity projects.
+SuperProductivity plugin to bring YouTrack issues into SuperProductivity, either as a one-off
+CSV import or as a live, repeatable sync directly against the YouTrack REST API.
 
 ## 📋 Features
 
-### Complete YouTrack data import
+The plugin's modal has two tabs:
 
-- ✅ **Import tasks** with title and description
-- ✅ **Automatic project creation** if they don't exist
-- ✅ **Import State tags** (In Progress, Blocked, Review, Stand by, Backlog Sprint)
-- ✅ **Import custom tags** from the CSV Tags column
-- ✅ **Preserve YouTrack Issue IDs** in task titles
-- ✅ **Random colors** for projects and tags
+- **📁 Manual Import** — import a YouTrack CSV export once.
+- **🔗 YouTrack Sync** — connect directly to a YouTrack instance with a token, filter tickets
+  with a YouTrack query, preview what will change, and sync on demand or automatically.
 
-### Smart management
+Both paths share the same import pipeline, so projects, tags, and the update-on-change behavior
+described below apply no matter which tab you use.
 
-- 🎯 **Correct assignment**: Tasks go to the right projects
-- 🏷️ **Automatic tags**: Combination of State tags + custom tags
-- 🎨 **Visual customization**: Random colors to differentiate projects and tags
-- 📊 **Standard CSV support**: Compatible with YouTrack CSV export
+### Core import behavior
 
-## 📥 Installation
+- ✅ **Automatic project creation** if the target project doesn't exist yet
+- ✅ **Tags from status and priority**: a task's YouTrack `State` and `Priority` are both turned
+  into SuperProductivity tags (created automatically if they don't exist)
+- ✅ **Due dates**: YouTrack's `Due Date` custom field is mapped to the task's due day
+- ✅ **Stable YouTrack ID** kept in the task title (`ISSUE-ID - Summary`) — this is what makes
+  re-syncing safe (see below)
+- 🔁 **Update instead of duplicate**: re-importing/re-syncing the same ticket updates the
+  existing task (title, description, tags, due date, project) instead of creating a duplicate
+- 🎨 **Random colors** for newly created projects and tags
 
-1. Download the `youtrack-csv-importer-v1.1.zip` file
-2. In SuperProductivity, go to **Settings → Plugins**
-3. Click on **Install Plugin from File**
-4. Select the downloaded ZIP file
-5. Enable the plugin
+## 🔗 YouTrack Sync tab
 
-## 🚀 Usage
+### 1. Connection
 
-### 1. Export from YouTrack
+Paste a permanent YouTrack API token (generate one in YouTrack under **Settings → Tokens**).
 
-In YouTrack, export your issues as CSV:
-1. Select your issues
-2. Export → CSV
-3. Make sure the following columns are included:
-   - **Issue Id** (required)
-   - **Summary** (required)
-   - **Project** (required)
-   - **State** (recommended)
-   - **Tags** (recommended)
-   - **Description** (optional)
+### 2. Ticket filter
 
-### 2. Import into SuperProductivity
+Write a YouTrack query exactly as you would in the YouTrack search bar, e.g.:
 
-1. Click the **"Import CSV"** button in the top bar
-2. Select your YouTrack CSV file
-3. Wait during the import
-4. ✅ You'll see a success notification!
+```
+Level: -Epic,-{Big Epic},-Goal project: {Web sites & services} State: -Canceled -Done Sprints: 26S08
+```
 
-### 3. Import result
+- **Assignee (optional)**: if filled, an `Assignee: ...` clause is appended to the query
+  automatically — no need to write it yourself.
+- **Saved presets**: name and save the current query + assignee combo to switch quickly between
+  filters (e.g. different boards or sprints) without retyping them. Presets are stored alongside
+  the rest of the plugin config and survive restarts.
 
-Your tasks are created with:
-- **Title**: `ISSUE-ID - Summary` (e.g., `NPW-260 - 📖 Custom color management`)
-- **Project**: Corresponding project (automatically created if needed)
-- **Description**: Full YouTrack description content
-- **State tags**: Tag corresponding to status (In Progress, Review, etc.)
-- **Custom tags**: All tags from the Tags column
+### 3. Automatic sprint (optional, collapsed by default)
 
-## 📊 Expected CSV structure
+If your queries need "the current sprint" rather than a hardcoded one, use the `{CURRENT_SPRINT}`
+placeholder anywhere in your query (e.g. `Sprints: {CURRENT_SPRINT}`), then:
 
-Example of compatible CSV structure:
+1. Check **Enable automatic sprint**.
+2. Set the **format** (placeholders: `{YEAR}` → `2026`, `{YEAR_SHORT}` → `26`,
+   `{SPRINT_NUM}` → `8`, `{SPRINT_NUM_PADDED}` → `08`; e.g. `{YEAR_SHORT}S{SPRINT_NUM_PADDED}` → `26S08`).
+3. Set the **sprint duration** in working days and the **start date** (the Monday your sprint #1 began).
+4. Use **Test configuration** to preview the current and next few generated sprint tags before
+   relying on it.
+
+If `{CURRENT_SPRINT}` appears in your query but this is left disabled, syncing fails with a clear
+error instead of sending the literal placeholder text to YouTrack — this also protects against
+double-counting a sprint filter you've already hardcoded elsewhere in the query.
+
+### 4. Automatic sync (optional, collapsed by default)
+
+Enable and pick an interval (hourly up to daily); a background check runs every 5 minutes and
+triggers a real sync once the configured interval has elapsed. Uses the same dedupe/update
+behavior as a manual sync — safe to leave running indefinitely.
+
+### 5. Test connection / Sync now / Save
+
+- **Test connection** — fetches matching tickets and reports a count, without importing anything.
+- **Sync now** — fetches matching tickets, classifies them (**New** / **Updated** / **Unchanged**)
+  and shows a preview list before anything is written. **Confirm sync** applies it; **Cancel**
+  discards it.
+- **Save** — persists the token, query, assignee, sprint config, schedule and presets.
+
+## 📁 Manual Import tab
+
+Export your issues from YouTrack as CSV, then:
+
+1. Choose the CSV file and click **Parse**.
+2. Review the preview (task/project/tag counts + sample list).
+3. Click **Import**.
+
+### Expected CSV structure
 
 ```csv
 Issue Id,Project,State,Tags,Summary,Description
@@ -69,107 +92,82 @@ HEW-260,helloWorld,Review,"HelloWorldr,Architecture","📖 Color management","De
 NHW-2838,New Hello,In Progress,"Star,Module","Hello design","Create a design..."
 ```
 
-### Supported columns
-
 | Column | Required | Description |
 |---------|-------------|-------------|
-| **Issue Id** | ✅ | YouTrack identifier (e.g., NPW-260) |
+| **Issue Id** | ⭐ | YouTrack identifier (e.g. `NPW-260`) — needed for update-on-reimport to work |
 | **Project** | ✅ | Project name |
 | **Summary** | ✅ | Task title |
-| **State** | ⭐ | Status (→ State tag) |
+| **State** | ⭐ | Status (→ tag) |
 | **Tags** | ⭐ | Custom tags (comma-separated) |
 | **Description** | 📝 | Full description |
 
-⭐ = Recommended  
-📝 = Optional
+⭐ = Recommended &nbsp;&nbsp; 📝 = Optional
 
-## 🎨 Tag management
+CSV rows without an **Issue Id** can still be imported, they just can't be matched on a future
+re-import (no stable ID to key off), so re-importing the same CSV without an Issue Id column will
+always create new tasks rather than updating existing ones.
 
-### State tags (root level)
-
-Automatically created at the Tags menu root:
-- **Review** 🟣
-- **In Progress** 🔵
-- **Blocked** 🔴
-- **Stand by** ⚫
-- **Backlog Sprint** 🟡
-
-### Custom tags (root level)
-
-Tags from the "Tags" column are created at root level. You can then manually move them to folders if desired.
-
-Examples: `Webapp Partner`, `Architecture`, `Core`, `Star`, etc.
-
-## 🔧 Import workflow (technical)
-
-The plugin follows this process:
+## 🔧 How sync/import works (technical)
 
 ```
-1️⃣ Create PROJECTS
+1️⃣ Fetch tickets (CSV parse, or paginated YouTrack API query)
    ↓
-2️⃣ Create TASKS (without tags)
+2️⃣ Classify against existing tasks by the "<Issue Id> - " title prefix:
+     - matches an ARCHIVED task → skip entirely
+     - matches an ACTIVE task   → update
+     - no match                → create
    ↓
-3️⃣ Create/fetch TAGS
+3️⃣ Create/fetch PROJECTS and TAGS needed by the whole batch
    ↓
-4️⃣ Update TASKS with tags
+4️⃣ Create new tasks; update changed tasks (title, notes, tags, due date, project)
 ```
 
-This order ensures that:
-- ✅ Tasks go to the right projects
-- ✅ Tags are assigned correctly
-- ✅ No conflicts or assignment errors
-
-## ⚙️ Configuration
-
-### Random colors
-
-- **Projects** receive a random primary color
-- **Tags** also receive a random color
-- Color range: Various hues with 60-80% saturation
-
-### Duplicate detection
-
-- **Existing projects** are reused (no duplicates)
-- **Existing tags** are reused (no duplicates)
-- Detection by **exact name** (case-sensitive)
+- **Project/tag matching** is by exact title (case-sensitive); existing ones are reused.
+- **YouTrack field extraction**: `State` and `Priority` are YouTrack custom fields (not built-in
+  issue attributes), read via the issue's `customFields`. `Project` is a built-in field, read
+  directly. `Due Date` is assumed to be a custom field literally named `Due Date` — there's no UI
+  to remap this if your YouTrack instance uses a different field name.
+- **Pagination**: the YouTrack API is queried in pages of 200 issues, looping until a page comes
+  back short, up to a safety cap of 1000 issues per query (logged to the console if hit — narrow
+  your query if you rely on more than that).
 
 ## 🐛 Troubleshooting
 
 ### Tasks don't go to the right projects
 
-1. Check that the **Project** column exists in the CSV
-2. Make sure project names are correct
-3. Reinstall the plugin by removing the old version
+1. Check that a **Project** column/field exists and is correct.
+2. Reinstall the plugin if you're not on the latest version.
 
 ### Tags are not assigned
 
-1. Open the console (F12) to see detailed logs
-2. Check that **State** and **Tags** columns exist
-3. Share the logs for diagnosis
+1. Open DevTools (the plugin iframe supports the same inspector) to see detailed `console.error` logs.
+2. Confirm the relevant `State`/`Priority`/`Tags` data is actually present on the source ticket.
 
-### Error during import
+### Sync creates duplicates anyway
 
-- Check that the CSV is encoded in **UTF-8**
-- Make sure there are no special characters in names
-- Test with a small data sample first
+This should no longer happen for any ticket with a stable ID. If it does, check that the task's
+title still starts with `<Issue Id> - ` — if it was renamed locally, the match will fail and a
+new task gets created instead of updating the renamed one.
+
+### Error during sync/import
+
+- Check the token is valid and not expired.
+- Make sure the CSV is UTF-8 encoded.
+- Try a narrower query/sample first to isolate the issue.
 
 ## 📝 Current limitations
 
-- ❌ No sub-task management
-- ❌ No date import (Due Date, Created, etc.)
-- ❌ No priority import
+- ❌ No bidirectional sync — changes made in SuperProductivity are never pushed back to YouTrack
+- ❌ `Due Date` field name is hardcoded — no UI to map a differently-named custom field
+- ❌ CSV rows without an Issue Id can't be deduped/updated on re-import
+- ❌ No sub-task import
 - ❌ No story points import
-- ❌ No user assignment
-
-These features may be added in future versions.
 
 ## 🔮 Possible future enhancements
 
-- 📅 Assign planned date
-- 👤 Task assignment
-- 🎯 Priority management
-- 🔄 Detection and update of existing tasks
-- 🔗 Bidirectional synchronization with YouTrack
+- 🔗 Push completed/edited tasks back to YouTrack
+- 🛠️ Configurable custom-field mapping (due date, story points, etc.)
+- 📦 Multiple YouTrack connections/instances in one config
 
 ## 📄 License
 
@@ -177,22 +175,21 @@ This plugin is provided as-is, without warranty.
 
 ## 🤝 Contributing
 
-Open to contribution
-To report a bug or suggest an improvement:
-1. Open the console (F12) during import
-2. Copy the error logs
-3. Describe expected vs actual behavior
+Open to contribution. To report a bug or suggest an improvement:
+1. Open DevTools during import/sync.
+2. Copy the error logs.
+3. Describe expected vs actual behavior.
 
 ## 📚 Resources
 
-- [SuperProductivity Plugin API Documentation](https://github.com/super-productivity/super-productivity/blob/master/docs/plugin-development.md)
+- [SuperProductivity Plugin API Documentation](https://github.com/super-productivity/super-productivity/blob/master/docs/wiki/2.15-Develop-a-Plugin.md)
 - [YouTrack CSV Export Guide](https://www.jetbrains.com/help/youtrack/incloud/export-issues.html)
+- [YouTrack REST API: Search and Command Attributes](https://www.jetbrains.com/help/youtrack/devportal/api-issues.html)
 
 ---
 
-**Version**: 1.3.0  
-**Compatibility**: SuperProductivity 14.0.0+  
-**Author**: COISSARD Yoann
+**Version**: 1.4.0
+**Compatibility**: SuperProductivity 14.0.0+
+**Author**: ycoissard
 
-Happy importing! 🚀
-
+Happy syncing! 🚀
