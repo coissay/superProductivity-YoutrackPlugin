@@ -1,17 +1,235 @@
 
 /**
- * YouTrack CSV Importer Plugin for SuperProductivity v1.2.1
- * Imports YouTrack issues from CSV export with preview UI
+ * YouTrack CSV Importer Plugin for SuperProductivity v1.3.0
+ * Imports YouTrack issues from CSV export or syncs directly with YouTrack API
  */
+
+const YOUTRACK_BASE_URL = 'https://youtrack.nperf.org';
+const CONFIG_KEY = 'youtrack-sync-config';
+const SYNC_INTERVAL_KEY = 'youtrack-last-sync';
 
 // Register header button to open the import modal
 PluginAPI.registerHeaderButton({
-  label: 'Import CSV',
-  icon: 'upload_file',
+  label: 'YouTrack Sync',
+  icon: 'view_kanban',
   onClick: () => {
     PluginAPI.showIndexHtmlAsView();
   },
 });
+
+/**
+ * Save configuration
+ */
+async function saveConfig(config) {
+  await PluginAPI.persistDataSynced(JSON.stringify({
+    [CONFIG_KEY]: config,
+  }));
+}
+
+/**
+ * Load configuration
+ */
+async function loadConfig() {
+  const data = await PluginAPI.loadSyncedData();
+  if (data) {
+    const parsed = JSON.parse(data);
+    return parsed[CONFIG_KEY] || {};
+  }
+  return {};
+}
+
+// ==========================================
+// SPRINT TAG GENERATION
+// ==========================================
+
+const DEFAULT_SPRINT_FORMAT = '{YEAR_SHORT}S{SPRINT_NUM_PADDED}';
+const DEFAULT_SPRINT_DURATION_DAYS = 15;
+
+/**
+ * Number of working days (Mon-Fri) elapsed between two dates,
+ * converted into a sprint number (1-indexed) given a sprint duration
+ */
+function calculateSprintNumber(startDate, currentDate, durationDays) {
+  let sprintNum = 1;
+  let workDays = 0;
+  const checkDate = new Date(startDate);
+
+  while (checkDate < currentDate) {
+    const dayOfWeek = checkDate.getDay();
+    if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+      workDays++;
+      if (workDays === durationDays) {
+        sprintNum++;
+        workDays = 0;
+      }
+    }
+    checkDate.setDate(checkDate.getDate() + 1);
+  }
+
+  return sprintNum;
+}
+
+/**
+ * Generates a sprint title from a format string and a sprint number
+ * Placeholders: {YEAR} (e.g. 2026), {YEAR_SHORT} (e.g. 26), {SPRINT_NUM} (e.g. 8), {SPRINT_NUM_PADDED} (e.g. 08)
+ */
+function generateSprintTitle(sprintNumber, format, year) {
+  const yearShort = String(year).slice(-2);
+  return format
+      .split('{YEAR_SHORT}').join(yearShort)
+      .split('{YEAR}').join(String(year))
+      .split('{SPRINT_NUM_PADDED}').join(String(sprintNumber).padStart(2, '0'))
+      .split('{SPRINT_NUM}').join(String(sprintNumber));
+}
+
+/**
+ * Computes the current sprint title from the sprint config (format, duration, start date)
+ */
+function getCurrentSprintTitle(sprintConfig) {
+  const format = sprintConfig.sprintFormat || DEFAULT_SPRINT_FORMAT;
+  const durationDays = sprintConfig.sprintDurationDays || DEFAULT_SPRINT_DURATION_DAYS;
+  const startDate = new Date(sprintConfig.sprintStartDate || Date.now());
+  const now = new Date();
+
+  const sprintNumber = calculateSprintNumber(startDate, now, durationDays);
+  return generateSprintTitle(sprintNumber, format, now.getFullYear());
+}
+
+/**
+ * Previews the next N sprint titles (starting from the current sprint)
+ * without depending on the persisted config - used by the "Test" button
+ */
+function previewSprintTitles(format, durationDays, startDateStr, count = 6) {
+  const resolvedFormat = format || DEFAULT_SPRINT_FORMAT;
+  const resolvedDuration = durationDays || DEFAULT_SPRINT_DURATION_DAYS;
+  const startDate = new Date(startDateStr || Date.now());
+  const now = new Date();
+
+  const currentSprintNum = calculateSprintNumber(startDate, now, resolvedDuration);
+  const titles = [];
+  for (let i = 0; i < count; i++) {
+    titles.push(generateSprintTitle(currentSprintNum + i, resolvedFormat, now.getFullYear()));
+  }
+  return titles;
+}
+
+/**
+ * Resolves a raw YouTrack query by replacing the {CURRENT_SPRINT} placeholder
+ * with the current sprint, and appending an Assignee filter if set
+ */
+function resolveYouTrackQuery(rawQuery, config) {
+  let query = (rawQuery || '').trim();
+  const hasPlaceholder = query.includes('{CURRENT_SPRINT}');
+
+  if (hasPlaceholder && !config.sprintAutoEnabled) {
+    throw new Error(
+        'The query contains {CURRENT_SPRINT} but automatic sprint is not enabled ' +
+        '(checkbox in the "Automatic sprint" section).'
+    );
+  }
+
+  if (config.sprintAutoEnabled) {
+    if (!config.sprintStartDate) {
+      throw new Error('Automatic sprint is enabled but no start date is configured.');
+    }
+    query = query.split('{CURRENT_SPRINT}').join(getCurrentSprintTitle(config));
+  }
+
+  if (config.assignee && config.assignee.trim()) {
+    query += ` Assignee: ${config.assignee.trim()}`;
+  }
+
+  return query.trim();
+}
+
+/**
+ * Fetch issues from YouTrack API using a raw YouTrack query string
+ */
+async function fetchFromYouTrack(token, query) {
+  const url = new URL(`${YOUTRACK_BASE_URL}/api/issues`);
+  url.searchParams.append('query', query);
+  url.searchParams.append('fields', 'id,idReadable,summary,project(name,shortName),customFields(name,value(name))');
+  url.searchParams.append('$top', '200');
+
+  try {
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`YouTrack API error: ${response.status} ${response.statusText}`);
+    }
+
+    const issues = await response.json();
+    return convertYouTrackIssuesToTasks(issues);
+  } catch (error) {
+    throw new Error(`Failed to fetch from YouTrack: ${error.message}`);
+  }
+}
+
+/**
+ * Convert YouTrack issues to SuperProductivity task format
+ */
+function convertYouTrackIssuesToTasks(issues) {
+  return issues.map((issue) => {
+    const customFields = issue.customFields || [];
+    const getCustomField = (name) => {
+      const field = customFields.find((f) => f.name === name);
+      return field?.value?.name || field?.value || null;
+    };
+
+    const state = getCustomField('State') || '';
+    const priority = getCustomField('Priority') || 'N/A';
+
+    return {
+      title: `${issue.idReadable} - ${issue.summary}`,
+      project: issue.project?.name || issue.project?.shortName || 'YouTrack',
+      description: `YouTrack: ${issue.idReadable}\nPriority: ${priority}`,
+      tags: state ? [state] : [],
+      state: state,
+      issueId: issue.idReadable,
+    };
+  });
+}
+
+/**
+ * Auto-sync with YouTrack (called periodically)
+ */
+async function autoSyncYouTrack() {
+  try {
+    const config = await loadConfig();
+
+    if (!config.token || !config.query || !config.enableAutoSync) {
+      return; // Not configured or disabled
+    }
+
+    const lastSync = localStorage.getItem(SYNC_INTERVAL_KEY);
+    const now = Date.now();
+    const syncInterval = (config.syncIntervalHours || 2) * 60 * 60 * 1000;
+
+    // Only sync if interval has passed
+    if (lastSync && (now - parseInt(lastSync)) < syncInterval) {
+      return;
+    }
+
+    const tasks = await fetchFromYouTrack(config.token, resolveYouTrackQuery(config.query, config));
+
+    if (tasks.length > 0) {
+      await importTasks(tasks);
+      localStorage.setItem(SYNC_INTERVAL_KEY, now.toString());
+    }
+  } catch (error) {
+    console.error('Auto-sync error:', error);
+  }
+}
+
+// Set up auto-sync check on plugin load (runs every 5 minutes)
+setInterval(autoSyncYouTrack, 5 * 60 * 1000);
 
 /**
  * Calculate statistics from parsed tasks
@@ -187,84 +405,73 @@ async function getAllTagsWithColors() {
  * Import tasks into SuperProductivity
  */
 async function importTasks(tasks) {
-  try {
-    const tasksByProject = new Map();
-    const stateTagsSet = new Set();
-    const customTagsSet = new Set();
+  const tasksByProject = new Map();
+  const tagTitlesSet = new Set();
 
-    for (const task of tasks) {
-      if (!tasksByProject.has(task.project)) {
-        tasksByProject.set(task.project, []);
-      }
-      tasksByProject.get(task.project).push(task);
+  for (const task of tasks) {
+    if (!tasksByProject.has(task.project)) {
+      tasksByProject.set(task.project, []);
+    }
+    tasksByProject.get(task.project).push(task);
 
-      if (task.state) {
-        stateTagsSet.add(task.state);
-      }
-
-      task.tags.forEach((tag) => customTagsSet.add(tag));
+    if (task.state) {
+      tagTitlesSet.add(task.state);
     }
 
-    const projectMap = new Map();
+    task.tags.forEach((tag) => tagTitlesSet.add(tag));
+  }
 
-    for (const projectName of tasksByProject.keys()) {
-      const project = await getOrCreateProject(projectName);
-      projectMap.set(projectName, project);
-    }
+  const projectMap = new Map();
 
-    const createdTasks = [];
+  for (const projectName of tasksByProject.keys()) {
+    const project = await getOrCreateProject(projectName);
+    projectMap.set(projectName, project);
+  }
 
-    for (const [projectName, projectTasks] of tasksByProject) {
-      const project = projectMap.get(projectName);
+  const tagMap = await ensureTagsExist(Array.from(tagTitlesSet));
 
-      for (const task of projectTasks) {
-        const taskData = {
-          title: task.title,
-          projectId: project.id,
-          tagIds: [],
-        };
+  const createdTasks = [];
 
-        if (task.description && task.description.trim()) {
-          taskData.notes = task.description;
-        }
+  for (const [projectName, projectTasks] of tasksByProject) {
+    const project = projectMap.get(projectName);
 
-        const taskId = await PluginAPI.addTask(taskData);
+    for (const task of projectTasks) {
+      const taskData = {
+        title: task.title,
+        projectId: project.id,
+        tagIds: [],
+      };
 
-        createdTasks.push({
-          taskId: taskId,
-          originalTask: task,
-        });
-      }
-    }
-
-    const stateTagMap = await createStateTags(Array.from(stateTagsSet));
-    const customTagMap = await createCustomTags(Array.from(customTagsSet));
-
-    for (const { taskId, originalTask } of createdTasks) {
-      const taskTagIds = [];
-
-      if (originalTask.state) {
-        const tagId = stateTagMap.get(originalTask.state);
-        if (tagId) {
-          taskTagIds.push(tagId);
-        }
+      if (task.description && task.description.trim()) {
+        taskData.notes = task.description;
       }
 
-      originalTask.tags.forEach((tagName) => {
-        const tagId = customTagMap.get(tagName);
-        if (tagId) {
-          taskTagIds.push(tagId);
-        }
+      const taskId = await PluginAPI.addTask(taskData);
+
+      createdTasks.push({
+        taskId: taskId,
+        originalTask: task,
       });
+    }
+  }
 
-      if (taskTagIds.length > 0) {
-        await PluginAPI.updateTask(taskId, {
-          tagIds: taskTagIds,
-        });
+  for (const { taskId, originalTask } of createdTasks) {
+    const tagTitles = new Set(originalTask.tags);
+    if (originalTask.state) {
+      tagTitles.add(originalTask.state);
+    }
+
+    const taskTagIds = Array.from(tagTitles)
+        .map((title) => tagMap.get(title))
+        .filter(Boolean);
+
+    if (taskTagIds.length > 0) {
+      try {
+        await PluginAPI.updateTask(taskId, { tagIds: taskTagIds });
+      } catch (error) {
+        console.error(`Failed to link tags to task "${originalTask.title}":`, error);
       }
     }
-  } catch (error) {
-    throw error;
   }
 }
 
@@ -285,91 +492,35 @@ function getRandomColor() {
 }
 
 /**
- * Create state tags at root level
+ * Fetches or creates the required tags (states + custom tags) in a single pass,
+ * to avoid reading getAllTags() twice and missing tags that were just created
+ * (which would create duplicates / fail to link them)
  */
-async function createStateTags(stateNames) {
-  const existingTags = await PluginAPI.getAllTags();
-
-  if (stateNames.length === 0) {
-    return new Map();
+async function ensureTagsExist(tagTitles) {
+  const tagMap = new Map();
+  if (tagTitles.length === 0) {
+    return tagMap;
   }
 
-  const tagMap = new Map();
+  const existingTags = await PluginAPI.getAllTags();
 
-  for (const stateName of stateNames) {
-    let tagId;
-    const existingTag = existingTags.find((t) => t.title === stateName && !t.parentId);
+  for (const title of tagTitles) {
+    const existingTag = existingTags.find((t) => t.title === title);
 
-    if (!existingTag) {
-      if (stateName.toLowerCase() === 'in progress') {
-        const defaultInProgressTag = existingTags.find(
-            (t) => t.title.toLowerCase() === 'in progress' && !t.parentId
-        );
-        if (defaultInProgressTag) {
-          tagId = defaultInProgressTag.id;
-        } else {
-          const color = getRandomColor();
-          tagId = await PluginAPI.addTag({
-            title: stateName,
-            color: color,
-            theme: {
-              primary: color,
-              isAutoContrast: true,
-            },
-          });
-        }
-      } else {
-        const color = getRandomColor();
-        tagId = await PluginAPI.addTag({
-          title: stateName,
-          color: color,
-          theme: {
-            primary: color,
-            isAutoContrast: true,
-          },
-        });
-      }
-    } else {
-      tagId = existingTag.id;
+    if (existingTag) {
+      tagMap.set(title, existingTag.id);
+      continue;
     }
 
-    tagMap.set(stateName, tagId);
-  }
-
-  return tagMap;
-}
-
-/**
- * Create custom tags at root level
- */
-async function createCustomTags(tagNames) {
-  if (tagNames.length === 0) {
-    return new Map();
-  }
-
-  const existingTags = await PluginAPI.getAllTags();
-  const tagMap = new Map();
-
-  for (const tagName of tagNames) {
-    let tagId;
-    const existingTag = existingTags.find((t) => t.title === tagName && !t.parentId);
-
-    if (!existingTag) {
-      const color = getRandomColor();
-
-      tagId = await PluginAPI.addTag({
-        title: tagName,
-        color: color,
-        theme: {
-          primary: color,
-          isAutoContrast: true,
-        },
+    try {
+      const tagId = await PluginAPI.addTag({
+        title: title,
+        color: getRandomColor(),
       });
-    } else {
-      tagId = existingTag.id;
+      tagMap.set(title, tagId);
+    } catch (error) {
+      console.error(`Failed to create tag "${title}":`, error);
     }
-
-    tagMap.set(tagName, tagId);
   }
 
   return tagMap;
@@ -408,3 +559,9 @@ window.parseCSV = parseCSV;
 window.calculateStats = calculateStats;
 window.importTasks = importTasks;
 window.getAllTagsWithColors = getAllTagsWithColors;
+window.fetchFromYouTrack = fetchFromYouTrack;
+window.saveConfig = saveConfig;
+window.loadConfig = loadConfig;
+window.autoSyncYouTrack = autoSyncYouTrack;
+window.previewSprintTitles = previewSprintTitles;
+window.resolveYouTrackQuery = resolveYouTrackQuery;
