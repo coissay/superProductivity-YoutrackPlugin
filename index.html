@@ -19,6 +19,7 @@
     .tab-content.active { display: flex; }
     .tab-scroll { flex: 1 1 auto; overflow-y: auto; padding: 24px; min-height: 0; }
     .tab-footer { flex: 0 0 auto; padding: 16px 24px; border-top: 1px solid #eee; background: #fafbff; }
+    .last-synced { font-size: 12px; color: #999; margin-bottom: 10px; text-align: center; }
     .file-input-group { display: flex; gap: 12px; }
     .file-input-wrapper { flex: 1; position: relative; overflow: hidden; }
     input[type="file"] { display: none; }
@@ -48,8 +49,6 @@
     .loading-spinner.show { display: block; }
     .spinner { width: 32px; height: 32px; border: 3px solid #e0e0e0; border-top-color: #667eea; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 12px; }
     @keyframes spin { to { transform: rotate(360deg); } }
-    .error-message { display: none; background: #ffe0e0; color: #d32f2f; padding: 10px 14px; border-radius: 6px; margin-bottom: 14px; font-size: 13px; border-left: 4px solid #d32f2f; }
-    .error-message.show { display: block; }
     .section { margin-bottom: 22px; }
     .section:last-child { margin-bottom: 0; }
     .section-title { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #667eea; margin-bottom: 10px; }
@@ -60,10 +59,6 @@
     .form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline: none; border-color: #667eea; box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1); }
     .form-help { font-size: 11px; color: #999; margin-top: 5px; }
     .form-help a { color: #667eea; text-decoration: none; }
-    .sync-status { display: none; background: #f0f1ff; border-left: 4px solid #667eea; padding: 10px 14px; border-radius: 6px; margin-top: 12px; font-size: 13px; }
-    .sync-status.show { display: block; }
-    .sync-status.success { background: #e8f5e9; border-left-color: #4caf50; }
-    .sync-status.error { background: #ffebee; border-left-color: #f44336; }
     .checkbox-wrapper { display: flex; align-items: center; gap: 8px; }
     .checkbox-wrapper input[type="checkbox"] { width: auto; margin: 0; }
     .checkbox-wrapper label { margin: 0; font-weight: 500; cursor: pointer; }
@@ -88,7 +83,6 @@
   <!-- TAB: CSV IMPORT -->
   <div class="tab-content active" id="tab-manual">
     <div class="tab-scroll">
-      <div class="error-message" id="errorMessageManual"></div>
       <div class="section" id="uploadSection">
         <div class="section-title">Step 1: CSV File</div>
         <div class="file-input-group">
@@ -134,6 +128,20 @@
       </div>
 
       <div class="section">
+        <div class="section-title">Saved presets</div>
+        <div class="form-group">
+          <label for="queryPresetSelect">Load a preset</label>
+          <div style="display: flex; gap: 8px;">
+            <select id="queryPresetSelect" style="flex: 1;">
+              <option value="">— Custom —</option>
+            </select>
+            <button id="deletePresetBtn" class="btn-secondary" type="button" disabled>🗑</button>
+          </div>
+          <div class="form-help">Loading a preset fills in the query, assignee, automatic sprint, automatic sync and status-handling settings below.</div>
+        </div>
+      </div>
+
+      <div class="section">
         <div class="section-title">Ticket filter</div>
         <div class="form-group">
           <label for="youtrackQuery">YouTrack query</label>
@@ -173,10 +181,23 @@
             <label for="sprintStartDate">Start date (Monday of sprint #1)</label>
             <input type="date" id="sprintStartDate" />
           </div>
+          <div class="form-group">
+            <div class="checkbox-wrapper">
+              <input type="checkbox" id="useSprintEndDateAsDueDate" />
+              <label for="useSprintEndDateAsDueDate">Use sprint end date as due date</label>
+            </div>
+            <div class="form-help">If your YouTrack instance has no Due Date field, set tickets' due date to the last day of the current sprint instead.</div>
+          </div>
+          <div class="form-group">
+            <div class="checkbox-wrapper">
+              <input type="checkbox" id="allowSprintCarryOver" />
+              <label for="allowSprintCarryOver">Allow tickets to carry over to the next sprint</label>
+            </div>
+            <div class="form-help">If checked, the sprint end date above is not enforced (falls back to the Due Date field mapping, or no due date) — for teams whose tickets aren't required to finish within the sprint they're filed in.</div>
+          </div>
           <div class="action-buttons">
             <button id="testSprintConfigBtn" class="btn-secondary">🧪 Test configuration</button>
           </div>
-          <div class="sync-status" id="sprintConfigResult"></div>
         </div>
       </details>
 
@@ -186,6 +207,8 @@
           <div class="form-group">
             <label for="syncInterval">Sync interval</label>
             <select id="syncInterval">
+              <option value="0.25">Every 15 minutes</option>
+              <option value="0.5">Every 30 minutes</option>
               <option value="1">Every hour</option>
               <option value="2" selected>Every 2 hours</option>
               <option value="4">Every 4 hours</option>
@@ -202,18 +225,67 @@
         </div>
       </details>
 
+      <details id="statusDetails">
+        <summary>✅ Status handling</summary>
+        <div class="details-body">
+          <div class="form-group">
+            <label for="terminalStatuses">Statuses to mark as Done</label>
+            <input type="text" id="terminalStatuses" placeholder="Ex: Done, MEP, TO_MEP, Canceled" />
+            <div class="form-help">Comma-separated YouTrack statuses (case-insensitive). Matching tickets are marked Done in SuperProductivity instead of getting a status tag — plugins can't archive tasks directly, so this is the closest equivalent; SuperProductivity's own archiving takes over from there.</div>
+          </div>
+        </div>
+      </details>
+
+      <details id="fieldMappingDetails">
+        <summary>🛠️ Field mapping</summary>
+        <div class="details-body">
+          <div class="form-group">
+            <label for="dueDateFieldName">Due date custom field name</label>
+            <input type="text" id="dueDateFieldName" placeholder="Due Date" />
+            <div class="form-help">The name of the YouTrack custom field holding the due date, exactly as it appears in your instance (case-sensitive). Defaults to "Due Date".</div>
+          </div>
+        </div>
+      </details>
+
+      <div class="section">
+        <div class="section-title">Save as preset</div>
+        <div class="form-group">
+          <label for="presetNameInput">Save current settings as a new preset</label>
+          <div style="display: flex; gap: 8px;">
+            <input type="text" id="presetNameInput" placeholder="Preset name" style="flex: 1;" />
+            <button id="savePresetBtn" class="btn-secondary" type="button">💾 Save as preset</button>
+          </div>
+          <div class="form-help">Once everything above is set up the way you want, save it here to quickly switch back to it later.</div>
+        </div>
+      </div>
+
+      <div class="section hidden" id="syncPreviewSection">
+        <div class="section-title">Preview</div>
+        <div class="preview-stats" style="grid-template-columns: repeat(4, 1fr);">
+          <div class="stat-card"><div class="stat-number" id="syncNewCount">0</div><div class="stat-label">New</div></div>
+          <div class="stat-card"><div class="stat-number" id="syncUpdateCount">0</div><div class="stat-label">To update</div></div>
+          <div class="stat-card"><div class="stat-number" id="syncUnchangedCount">0</div><div class="stat-label">Already in sync</div></div>
+          <div class="stat-card"><div class="stat-number" id="syncSkipCount">0</div><div class="stat-label">Archived</div></div>
+        </div>
+        <div class="task-list" id="syncTaskPreview"></div>
+      </div>
+
       <div class="loading-spinner" id="syncLoadingSection">
         <div class="spinner"></div>
         <p>Syncing...</p>
       </div>
     </div>
     <div class="tab-footer">
-      <div class="action-buttons">
+      <div class="last-synced" id="lastSyncedLine">Never synced yet</div>
+      <div class="action-buttons" id="syncNormalButtons">
         <button id="testConnectionBtn" class="btn-secondary">🧪 Test connection</button>
         <button id="syncNowBtn">🔄 Sync now</button>
         <button id="saveConfigBtn">💾 Save</button>
       </div>
-      <div class="sync-status" id="syncStatus"></div>
+      <div class="action-buttons hidden" id="syncPreviewButtons">
+        <button id="cancelSyncBtn" class="btn-secondary">Cancel</button>
+        <button id="confirmSyncBtn">✅ Confirm sync</button>
+      </div>
     </div>
   </div>
 </div>
@@ -222,12 +294,29 @@
   let parsedTasks = [];
   let parseStats = {};
   let allTagsWithColors = {};
+  let queryPresets = [];
+  let pendingSyncTasks = [];
+  let currentConfig = {};
 
   function showError(msg) {
-    const el = document.getElementById('errorMessageManual');
-    el.textContent = msg;
-    el.classList.add('show');
-    setTimeout(() => el.classList.remove('show'), 5000);
+    PluginAPI.showSnack({ msg, type: 'ERROR' });
+  }
+
+  function formatRelativeTime(timestamp) {
+    const diffSeconds = Math.max(0, Math.round((Date.now() - timestamp) / 1000));
+    if (diffSeconds < 60) return 'just now';
+    const diffMinutes = Math.round(diffSeconds / 60);
+    if (diffMinutes < 60) return `${diffMinutes} minute${diffMinutes === 1 ? '' : 's'} ago`;
+    const diffHours = Math.round(diffMinutes / 60);
+    if (diffHours < 24) return `${diffHours} hour${diffHours === 1 ? '' : 's'} ago`;
+    const diffDays = Math.round(diffHours / 24);
+    return `${diffDays} day${diffDays === 1 ? '' : 's'} ago`;
+  }
+
+  async function refreshLastSyncedLine() {
+    const el = document.getElementById('lastSyncedLine');
+    const timestamp = await window.parent.getLastSyncTimestamp();
+    el.textContent = timestamp ? `Last synced: ${formatRelativeTime(timestamp)}` : 'Never synced yet';
   }
 
   function escapeHtml(text) {
@@ -236,10 +325,7 @@
   }
 
   function showSyncStatus(message, type = 'info') {
-    const el = document.getElementById('syncStatus');
-    const icons = { info: '✓', success: '✅', error: '❌' };
-    el.innerHTML = `<span>${icons[type]}</span> ${message}`;
-    el.className = `sync-status show ${type}`;
+    PluginAPI.showSnack({ msg: message, type: type === 'error' ? 'ERROR' : 'SUCCESS' });
   }
 
   document.querySelectorAll('.tab-button').forEach(btn => {
@@ -257,18 +343,107 @@
       token: document.getElementById('youtrackToken').value.trim(),
       query: document.getElementById('youtrackQuery').value.trim(),
       assignee: document.getElementById('youtrackAssigneeFilter').value.trim(),
-      syncIntervalHours: parseInt(document.getElementById('syncInterval').value),
+      syncIntervalHours: parseFloat(document.getElementById('syncInterval').value),
       enableAutoSync: document.getElementById('enableAutoSync').checked,
       sprintFormat: document.getElementById('sprintFormat').value.trim(),
       sprintDurationDays: parseInt(document.getElementById('sprintDuration').value) || undefined,
       sprintStartDate: document.getElementById('sprintStartDate').value,
       sprintAutoEnabled: document.getElementById('enableSprintAuto').checked,
+      terminalStatuses: document.getElementById('terminalStatuses').value.trim(),
+      dueDateFieldName: document.getElementById('dueDateFieldName').value.trim(),
+      useSprintEndDateAsDueDate: document.getElementById('useSprintEndDateAsDueDate').checked,
+      allowSprintCarryOver: document.getElementById('allowSprintCarryOver').checked,
+      queryPresets: queryPresets,
     };
   }
+
+  function renderPresetOptions() {
+    const select = document.getElementById('queryPresetSelect');
+    const currentValue = select.value;
+    select.innerHTML = '<option value="">— Custom —</option>' +
+        queryPresets.map((p) => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('');
+    select.value = queryPresets.some((p) => p.id === currentValue) ? currentValue : '';
+    document.getElementById('deletePresetBtn').disabled = !select.value;
+  }
+
+  document.getElementById('queryPresetSelect').addEventListener('change', (e) => {
+    const id = e.target.value;
+    document.getElementById('deletePresetBtn').disabled = !id;
+    if (!id) return;
+    const preset = queryPresets.find((p) => p.id === id);
+    if (!preset) return;
+    document.getElementById('youtrackQuery').value = preset.query || '';
+    document.getElementById('youtrackAssigneeFilter').value = preset.assignee || '';
+    document.getElementById('sprintFormat').value = preset.sprintFormat || '{YEAR_SHORT}S{SPRINT_NUM_PADDED}';
+    document.getElementById('sprintDuration').value = preset.sprintDurationDays || 15;
+    document.getElementById('sprintStartDate').value = preset.sprintStartDate || '';
+    document.getElementById('enableSprintAuto').checked = preset.sprintAutoEnabled === true;
+    document.getElementById('syncInterval').value = preset.syncIntervalHours || 2;
+    document.getElementById('enableAutoSync').checked = preset.enableAutoSync !== false;
+    document.getElementById('terminalStatuses').value = preset.terminalStatuses || '';
+    document.getElementById('dueDateFieldName').value = preset.dueDateFieldName || '';
+    document.getElementById('useSprintEndDateAsDueDate').checked = preset.useSprintEndDateAsDueDate === true;
+    document.getElementById('allowSprintCarryOver').checked = preset.allowSprintCarryOver === true;
+  });
+
+  document.getElementById('savePresetBtn').addEventListener('click', async () => {
+    const name = document.getElementById('presetNameInput').value.trim();
+    const config = getFormConfig();
+
+    if (!name) {
+      showSyncStatus('Enter a preset name', 'error');
+      return;
+    }
+    if (!config.query) {
+      showSyncStatus('Enter a query before saving a preset', 'error');
+      return;
+    }
+
+    const existing = queryPresets.find((p) => p.name === name);
+    const presetData = {
+      id: existing?.id,
+      name,
+      query: config.query,
+      assignee: config.assignee,
+      sprintFormat: config.sprintFormat,
+      sprintDurationDays: config.sprintDurationDays,
+      sprintStartDate: config.sprintStartDate,
+      sprintAutoEnabled: config.sprintAutoEnabled,
+      syncIntervalHours: config.syncIntervalHours,
+      enableAutoSync: config.enableAutoSync,
+      terminalStatuses: config.terminalStatuses,
+      dueDateFieldName: config.dueDateFieldName,
+      useSprintEndDateAsDueDate: config.useSprintEndDateAsDueDate,
+      allowSprintCarryOver: config.allowSprintCarryOver,
+    };
+    const updatedConfig = await window.parent.saveQueryPreset(config, presetData);
+    await window.parent.saveConfig(updatedConfig);
+    queryPresets = updatedConfig.queryPresets;
+    renderPresetOptions();
+    const saved = queryPresets.find((p) => p.name === name);
+    document.getElementById('queryPresetSelect').value = saved ? saved.id : '';
+    document.getElementById('deletePresetBtn').disabled = !saved;
+    document.getElementById('presetNameInput').value = '';
+    showSyncStatus(`Preset "${name}" saved!`, 'success');
+  });
+
+  document.getElementById('deletePresetBtn').addEventListener('click', async () => {
+    const select = document.getElementById('queryPresetSelect');
+    const id = select.value;
+    if (!id) return;
+
+    const config = getFormConfig();
+    const updatedConfig = await window.parent.deleteQueryPreset(config, id);
+    await window.parent.saveConfig(updatedConfig);
+    queryPresets = updatedConfig.queryPresets;
+    renderPresetOptions();
+    showSyncStatus('Preset deleted', 'success');
+  });
 
   window.addEventListener('load', async () => {
     try {
       const config = await window.parent.loadConfig();
+      currentConfig = config;
       if (config.token) {
         document.getElementById('youtrackToken').value = config.token;
         document.getElementById('youtrackQuery').value = config.query || '';
@@ -280,16 +455,20 @@
       document.getElementById('sprintDuration').value = config.sprintDurationDays || 15;
       document.getElementById('sprintStartDate').value = config.sprintStartDate || '';
       document.getElementById('enableSprintAuto').checked = config.sprintAutoEnabled === true;
+      document.getElementById('terminalStatuses').value = config.terminalStatuses || '';
+      document.getElementById('dueDateFieldName').value = config.dueDateFieldName || '';
+      document.getElementById('useSprintEndDateAsDueDate').checked = config.useSprintEndDateAsDueDate === true;
+      document.getElementById('allowSprintCarryOver').checked = config.allowSprintCarryOver === true;
+      queryPresets = Array.isArray(config.queryPresets) ? config.queryPresets : [];
+      renderPresetOptions();
     } catch (error) {
       console.error('Error loading config:', error);
     }
+
+    await refreshLastSyncedLine();
   });
 
-  function showSprintConfigResult(message, type = 'success') {
-    const el = document.getElementById('sprintConfigResult');
-    el.innerHTML = message;
-    el.className = `sync-status show ${type}`;
-  }
+  setInterval(refreshLastSyncedLine, 30000);
 
   document.getElementById('testSprintConfigBtn').addEventListener('click', async () => {
     const format = document.getElementById('sprintFormat').value.trim();
@@ -297,12 +476,20 @@
     const startDate = document.getElementById('sprintStartDate').value;
 
     if (!startDate) {
-      showSprintConfigResult('Enter a start date to test the configuration', 'error');
+      PluginAPI.showSnack({ msg: 'Enter a start date to test the configuration', type: 'ERROR' });
       return;
     }
 
-    const titles = await window.parent.previewSprintTitles(format, duration, startDate);
-    showSprintConfigResult(`<strong>Current sprint:</strong> ${titles[0]}<br><strong>Next:</strong> ${titles.slice(1).join(', ')}`, 'success');
+    const { titles, daysUntilNextSprint } = await window.parent.previewSprintTitles(format, duration, startDate);
+    const nextSprintLine = daysUntilNextSprint === 0
+        ? 'Your next sprint starts today'
+        : daysUntilNextSprint === 1
+            ? 'Your next sprint starts in 1 day'
+            : `Your next sprint starts in ${daysUntilNextSprint} days`;
+    PluginAPI.showSnack({
+      msg: `Current sprint: ${titles[0]}\nNext: ${titles.slice(1).join(', ')}\n${nextSprintLine}`,
+      type: 'SUCCESS',
+    });
   });
 
   document.getElementById('saveConfigBtn').addEventListener('click', async () => {
@@ -328,7 +515,8 @@
     try {
       document.getElementById('syncLoadingSection').classList.add('show');
       const resolvedQuery = await window.parent.resolveYouTrackQuery(config.query, config);
-      const tasks = await window.parent.fetchFromYouTrack(config.token, resolvedQuery);
+      const dueDateOverride = await window.parent.computeDueDateOverride(config);
+      const tasks = await window.parent.fetchFromYouTrack(config.token, resolvedQuery, config.terminalStatuses, config.dueDateFieldName, dueDateOverride);
       document.getElementById('syncLoadingSection').classList.remove('show');
       showSyncStatus(`Connection successful! ${tasks.length} task(s) found`, 'success');
     } catch (error) {
@@ -336,6 +524,40 @@
       showSyncStatus(error.message, 'error');
     }
   });
+
+  async function showSyncPreview(tasks, classification) {
+    const { changed, unchanged } = await window.parent.splitUpdatesByChange(classification.toUpdate);
+
+    document.getElementById('syncNewCount').textContent = classification.toCreate.length;
+    document.getElementById('syncUpdateCount').textContent = changed.length;
+    document.getElementById('syncUnchangedCount').textContent = unchanged.length;
+    document.getElementById('syncSkipCount').textContent = classification.toSkip.length;
+
+    const items = [
+      ...classification.toCreate.map((task) => ({ task, badge: 'New' })),
+      ...changed.map((u) => ({ task: u.incoming, badge: 'To update' })),
+    ];
+
+    const preview = document.getElementById('syncTaskPreview');
+    const itemsToShow = items.slice(0, 20);
+    preview.innerHTML = itemsToShow.map(({ task, badge }) =>
+        `<div class="task-item"><div class="task-title">📌 ${escapeHtml(task.title)}</div><div class="task-meta"><strong>Project:</strong> ${escapeHtml(task.project)} • <strong>${badge}</strong></div></div>`
+    ).join('');
+    if (items.length > 20) {
+      preview.innerHTML += `<div class="more-tasks">⋯ and ${items.length - 20} more task(s)</div>`;
+    }
+
+    document.getElementById('syncPreviewSection').classList.remove('hidden');
+    document.getElementById('syncNormalButtons').classList.add('hidden');
+    document.getElementById('syncPreviewButtons').classList.remove('hidden');
+  }
+
+  function hideSyncPreview() {
+    document.getElementById('syncPreviewSection').classList.add('hidden');
+    document.getElementById('syncNormalButtons').classList.remove('hidden');
+    document.getElementById('syncPreviewButtons').classList.add('hidden');
+    pendingSyncTasks = [];
+  }
 
   document.getElementById('syncNowBtn').addEventListener('click', async () => {
     const config = getFormConfig();
@@ -346,10 +568,31 @@
     try {
       document.getElementById('syncLoadingSection').classList.add('show');
       const resolvedQuery = await window.parent.resolveYouTrackQuery(config.query, config);
-      const tasks = await window.parent.fetchFromYouTrack(config.token, resolvedQuery);
-      await window.parent.importTasks(tasks);
+      const dueDateOverride = await window.parent.computeDueDateOverride(config);
+      const tasks = await window.parent.fetchFromYouTrack(config.token, resolvedQuery, config.terminalStatuses, config.dueDateFieldName, dueDateOverride);
+      const classification = await window.parent.classifySyncTasks(tasks);
+      pendingSyncTasks = tasks;
+      await showSyncPreview(tasks, classification);
       document.getElementById('syncLoadingSection').classList.remove('show');
-      showSyncStatus(`✅ ${tasks.length} task(s) synced!`, 'success');
+    } catch (error) {
+      document.getElementById('syncLoadingSection').classList.remove('show');
+      showSyncStatus(error.message, 'error');
+    }
+  });
+
+  document.getElementById('cancelSyncBtn').addEventListener('click', () => {
+    hideSyncPreview();
+  });
+
+  document.getElementById('confirmSyncBtn').addEventListener('click', async () => {
+    try {
+      document.getElementById('syncLoadingSection').classList.add('show');
+      const { created, updated } = await window.parent.importTasks(pendingSyncTasks);
+      await window.parent.recordLastSyncTimestamp();
+      await refreshLastSyncedLine();
+      document.getElementById('syncLoadingSection').classList.remove('show');
+      showSyncStatus(`✅ Synced! ${created} new, ${updated} updated`, 'success');
+      hideSyncPreview();
     } catch (error) {
       document.getElementById('syncLoadingSection').classList.remove('show');
       showSyncStatus(error.message, 'error');
@@ -369,7 +612,7 @@
     }
     try {
       const text = await file.text();
-      parsedTasks = window.parent.parseCSV(text);
+      parsedTasks = window.parent.parseCSV(text, currentConfig.terminalStatuses);
       parseStats = window.parent.calculateStats(parsedTasks);
       allTagsWithColors = await window.parent.getAllTagsWithColors();
       document.getElementById('uploadSection').classList.add('hidden');
