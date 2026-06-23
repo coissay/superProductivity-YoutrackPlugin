@@ -1,6 +1,6 @@
 
 /**
- * YouTrack CSV Importer Plugin for SuperProductivity v1.7.6
+ * YouTrack CSV Importer Plugin for SuperProductivity v1.7.7
  * Imports YouTrack issues from CSV export or syncs directly with YouTrack API
  */
 
@@ -383,7 +383,7 @@ function toDueDay(value) {
     return null;
   }
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date.toISOString().slice(0, 10);
+  return Number.isNaN(date.getTime()) ? null : formatLocalDate(date);
 }
 
 /**
@@ -590,6 +590,7 @@ function parseCSV(text, terminalStatusesRaw) {
       project: values[projectIndex] || 'Default',
       description: descriptionIndex !== -1 ? (values[descriptionIndex] || '') : '',
       tags: tagsList,
+      state: state || null,
       isDone: isTerminal,
       issueId: issueId || null,
     };

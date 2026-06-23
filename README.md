@@ -293,7 +293,7 @@ Open to contribution. To report a bug or suggest an improvement:
 
 ---
 
-**Version**: 1.7.6
+**Version**: 1.7.7
 **Compatibility**: SuperProductivity 14.0.0+
 **Author**: ycoissard
 

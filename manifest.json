@@ -1,7 +1,7 @@
 {
   "id": "youtrack-csv-importer",
   "name": "YouTrack CSV Importer",
-  "version": "1.7.6",
+  "version": "1.7.7",
   "description": "Import YouTrack issues into SuperProductivity via CSV export or direct API sync, with tags, due dates and update-on-change support",
   "manifestVersion": 1,
   "minSupVersion": "14.0.0",
