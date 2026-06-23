@@ -5,69 +5,98 @@
   <title>YouTrack Importer</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { color-scheme: light; }
     html, body { width: 100%; height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
     body { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; padding: 20px; }
-    .modal { background: white; border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); width: 100%; max-width: 600px; height: 85vh; display: flex; flex-direction: column; animation: slideUp 0.4s ease; overflow: hidden; }
+
+    .modal { background: #f5f6fa; border-radius: 18px; box-shadow: 0 24px 70px rgba(0,0,0,0.35); width: 100%; max-width: 860px; height: 88vh; display: flex; flex-direction: column; animation: slideUp 0.4s ease; overflow: hidden; }
     @keyframes slideUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
-    .modal-header { background: #fafbff; color: #333; padding: 20px 24px 0; border-radius: 16px 16px 0 0; flex: 0 0 auto; }
-    .modal-header h1 { font-size: 22px; font-weight: 700; margin: 0 0 16px; display: flex; align-items: center; gap: 12px; color: #333; }
-    .tabs { display: flex; gap: 20px; border-bottom: 1px solid #e6e6e6; }
-    .tab-button { padding: 10px 2px; border: none; background: none; cursor: pointer; font-weight: 600; color: #999; position: relative; font-size: 14px; }
-    .tab-button.active { color: #667eea; }
-    .tab-button.active::after { content: ''; position: absolute; bottom: -1px; left: 0; right: 0; height: 2px; background: #667eea; }
+
+    .modal-header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 22px 28px; flex: 0 0 auto; }
+    .modal-header h1 { font-size: 19px; font-weight: 700; margin: 0 0 16px; display: flex; align-items: center; gap: 10px; color: white; letter-spacing: 0.2px; }
+
+    .tabs { display: inline-flex; gap: 8px; }
+    .tab-button { padding: 8px 18px !important; border: none !important; background: #e4e6f0 !important; cursor: pointer; font-weight: 600 !important; color: #43465c !important; font-size: 13px !important; border-radius: 999px !important; transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease !important; transform: none !important; }
+    .tab-button:hover:not(.active) { background: white !important; color: #2c2c40 !important; transform: none !important; filter: none !important; box-shadow: none !important; }
+    .tab-button.active { color: #5b3a91 !important; background: white !important; box-shadow: 0 2px 8px rgba(20,20,50,0.25) !important; }
+
     .tab-content { display: none; flex-direction: column; flex: 1 1 auto; min-height: 0; }
     .tab-content.active { display: flex; }
-    .tab-scroll { flex: 1 1 auto; overflow-y: auto; padding: 24px; min-height: 0; }
-    .tab-footer { flex: 0 0 auto; padding: 16px 24px; border-top: 1px solid #eee; background: #fafbff; }
-    .last-synced { font-size: 12px; color: #999; margin-bottom: 10px; text-align: center; }
+    .tab-scroll { flex: 1 1 auto; overflow-y: auto; padding: 22px 28px; min-height: 0; }
+    .tab-footer { flex: 0 0 auto; padding: 16px 28px; border-top: 1px solid #e6e8f0; background: white; display: flex; flex-direction: column; gap: 10px; }
+    .last-synced { font-size: 12px; color: #9a9eb5; text-align: center; }
+
+    /* Card grid */
+    .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; align-items: start; }
+    .card-wide { grid-column: 1 / -1; }
+    .card {
+      background: white; border: 1px solid #e9eaf2; border-radius: 14px; padding: 18px;
+      box-shadow: 0 1px 3px rgba(20, 20, 50, 0.05);
+    }
+    .card-header { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+    .card-icon {
+      width: 30px; height: 30px; flex: 0 0 auto; border-radius: 9px; background: #eef0fd;
+      display: flex; align-items: center; justify-content: center; font-size: 15px;
+    }
+    .card-title { font-size: 13px; font-weight: 700; color: #2c2c40; letter-spacing: 0.2px; }
+    .card .form-group:last-child { margin-bottom: 0; }
+
+    /* Collapsible cards (details) */
+    details.card { padding: 0; overflow: hidden; }
+    details summary { list-style: none; cursor: pointer; padding: 16px 18px; display: flex; align-items: center; justify-content: space-between; }
+    details summary::-webkit-details-marker { display: none; }
+    details summary .card-header { margin-bottom: 0; }
+    details summary::after { content: '▾'; color: #b0b3c6; transition: transform 0.2s ease; margin-left: 8px; }
+    details[open] summary::after { transform: rotate(180deg); }
+    details .details-body { padding: 0 18px 18px; }
+
     .file-input-group { display: flex; gap: 12px; }
     .file-input-wrapper { flex: 1; position: relative; overflow: hidden; }
     input[type="file"] { display: none; }
-    .file-label { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 16px 20px; border: 2px dashed #ddd; border-radius: 8px; background: #f8f9fa; cursor: pointer; transition: all 0.3s ease; font-weight: 500; color: #666; }
+    .file-label { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 16px 20px; border: 2px dashed #d8dae8; border-radius: 10px; background: #f8f9fd; cursor: pointer; transition: all 0.2s ease; font-weight: 500; color: #666; }
     .file-label:hover { border-color: #667eea; background: #f0f1ff; color: #667eea; }
-    button { padding: 11px 20px !important; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important; color: white !important; border: none !important; border-radius: 8px !important; font-weight: 600 !important; font-size: 13px !important; cursor: pointer !important; transition: transform 0.2s ease, box-shadow 0.2s ease !important; white-space: nowrap !important; }
-    button:hover:not(:disabled) { transform: translateY(-1px) !important; box-shadow: 0 6px 14px rgba(102, 126, 234, 0.4) !important; filter: brightness(1.1) !important; }
-    button:disabled { opacity: 0.5 !important; cursor: not-allowed !important; transform: none !important; }
-    button.btn-secondary { background: #e0e0e0 !important; color: #333 !important; }
-    button.btn-secondary:hover:not(:disabled) { background: #d0d0d0 !important; box-shadow: 0 6px 14px rgba(0,0,0,0.15) !important; }
+
+    button { padding: 10px 18px !important; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important; color: white !important; border: none !important; border-radius: 9px !important; font-weight: 600 !important; font-size: 13px !important; cursor: pointer !important; transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease !important; white-space: nowrap !important; }
+    button:hover:not(:disabled) { transform: translateY(-1px) !important; box-shadow: 0 6px 14px rgba(102, 126, 234, 0.35) !important; filter: brightness(1.07) !important; }
+    button:disabled { opacity: 0.45 !important; cursor: not-allowed !important; transform: none !important; box-shadow: none !important; }
+
     .hidden { display: none !important; }
-    .preview-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 24px; }
-    .stat-card { background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%); padding: 16px; border-radius: 8px; text-align: center; border-left: 4px solid #667eea; }
-    .stat-number { font-size: 28px; font-weight: 700; color: #667eea; }
-    .stat-label { font-size: 12px; color: #999; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
-    .task-list { max-height: 240px; overflow-y: auto; border: 1px solid #e0e0e0; border-radius: 8px; margin-bottom: 8px; }
-    .task-item { padding: 12px 16px; border-bottom: 1px solid #e0e0e0; }
-    .task-item:hover { background: #f8f9fa; }
+
+    .preview-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 10px; margin-bottom: 18px; }
+    .stat-card { background: #f7f7fd; padding: 14px 10px; border-radius: 10px; text-align: center; border-left: 3px solid #667eea; }
+    .stat-number { font-size: 24px; font-weight: 700; color: #667eea; }
+    .stat-label { font-size: 11px; color: #9a9eb5; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.4px; }
+
+    .task-list { max-height: 240px; overflow-y: auto; border: 1px solid #e9eaf2; border-radius: 10px; margin-bottom: 4px; }
+    .task-item { padding: 12px 16px; border-bottom: 1px solid #eff0f7; }
+    .task-item:hover { background: #f8f9fd; }
     .task-item:last-child { border-bottom: none; }
-    .task-title { font-weight: 600; color: #333; font-size: 13px; margin-bottom: 4px; }
-    .task-meta { font-size: 12px; color: #999; margin-bottom: 6px; }
+    .task-title { font-weight: 600; color: #2c2c40; font-size: 13px; margin-bottom: 4px; }
+    .task-meta { font-size: 12px; color: #9a9eb5; margin-bottom: 6px; }
     .task-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
     .tag-badge { padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; color: white; display: inline-block; }
-    .more-tasks { padding: 12px 16px; text-align: center; color: #999; font-size: 12px; background: #f8f9fa; border-top: 1px solid #e0e0e0; }
+    .more-tasks { padding: 12px 16px; text-align: center; color: #9a9eb5; font-size: 12px; background: #f8f9fd; border-top: 1px solid #eff0f7; }
+
     .action-buttons { display: flex; flex-wrap: wrap; gap: 10px; }
-    .loading-spinner { display: none; text-align: center; padding: 24px; }
+
+    .loading-spinner { display: none; text-align: center; padding: 22px; }
     .loading-spinner.show { display: block; }
-    .spinner { width: 32px; height: 32px; border: 3px solid #e0e0e0; border-top-color: #667eea; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 12px; }
+    .spinner { width: 30px; height: 30px; border: 3px solid #e9eaf2; border-top-color: #667eea; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 10px; }
     @keyframes spin { to { transform: rotate(360deg); } }
-    .section { margin-bottom: 22px; }
-    .section:last-child { margin-bottom: 0; }
-    .section-title { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #667eea; margin-bottom: 10px; }
-    .form-group { margin-bottom: 16px; }
-    .form-group label { display: block; font-weight: 600; margin-bottom: 6px; color: #333; font-size: 13px; }
-    .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 9px 11px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; font-family: inherit; }
+    .loading-spinner p { color: #9a9eb5; font-size: 13px; }
+
+    .form-group { margin-bottom: 14px; }
+    .form-group label { display: block; font-weight: 600; margin-bottom: 6px; color: #43465c; font-size: 12.5px; }
+    .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 9px 11px; border: 1px solid #dcdee8; border-radius: 8px; font-size: 13px; font-family: inherit; background: #fff; color: #2c2c40; }
     .form-group textarea { resize: vertical; }
-    .form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline: none; border-color: #667eea; box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1); }
-    .form-help { font-size: 11px; color: #999; margin-top: 5px; }
+    .form-group input::placeholder, .form-group textarea::placeholder { color: #a6a9bd; }
+    .form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline: none; border-color: #667eea; box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.12); }
+    .form-help { font-size: 11px; color: #9a9eb5; margin-top: 5px; line-height: 1.4; }
     .form-help a { color: #667eea; text-decoration: none; }
+
     .checkbox-wrapper { display: flex; align-items: center; gap: 8px; }
-    .checkbox-wrapper input[type="checkbox"] { width: auto; margin: 0; }
+    .checkbox-wrapper input[type="checkbox"] { width: auto; margin: 0; accent-color: #667eea; }
     .checkbox-wrapper label { margin: 0; font-weight: 500; cursor: pointer; }
-    details { border: 1px solid #e6e6e6; border-radius: 8px; margin-bottom: 16px; }
-    details summary { padding: 10px 14px; cursor: pointer; font-weight: 600; font-size: 13px; color: #555; list-style: none; display: flex; align-items: center; justify-content: space-between; }
-    details summary::-webkit-details-marker { display: none; }
-    details summary::after { content: '▾'; transition: transform 0.2s ease; color: #999; }
-    details[open] summary::after { transform: rotate(180deg); }
-    details .details-body { padding: 0 14px 14px; }
   </style>
 </head>
 <body>
@@ -83,24 +112,26 @@
   <!-- TAB: CSV IMPORT -->
   <div class="tab-content active" id="tab-manual">
     <div class="tab-scroll">
-      <div class="section" id="uploadSection">
-        <div class="section-title">Step 1: CSV File</div>
-        <div class="file-input-group">
-          <div class="file-input-wrapper">
-            <label class="file-label" for="fileInput">📁 <span id="fileLabel">Choose a file</span></label>
-            <input type="file" id="fileInput" accept=".csv" />
+      <div class="card-grid">
+        <div class="card card-wide" id="uploadSection">
+          <div class="card-header"><div class="card-icon">📁</div><div class="card-title">Step 1 — CSV file</div></div>
+          <div class="file-input-group">
+            <div class="file-input-wrapper">
+              <label class="file-label" for="fileInput">📁 <span id="fileLabel">Choose a file</span></label>
+              <input type="file" id="fileInput" accept=".csv" />
+            </div>
+            <button id="parseBtn">Parse</button>
           </div>
-          <button id="parseBtn">Parse</button>
         </div>
-      </div>
-      <div class="section hidden" id="previewSection">
-        <div class="section-title">Step 2: Preview</div>
-        <div class="preview-stats">
-          <div class="stat-card"><div class="stat-number" id="taskCount">0</div><div class="stat-label">Tasks</div></div>
-          <div class="stat-card"><div class="stat-number" id="projectCount">0</div><div class="stat-label">Projects</div></div>
-          <div class="stat-card"><div class="stat-number" id="tagCount">0</div><div class="stat-label">Tags</div></div>
+        <div class="card card-wide hidden" id="previewSection">
+          <div class="card-header"><div class="card-icon">👀</div><div class="card-title">Step 2 — Preview</div></div>
+          <div class="preview-stats">
+            <div class="stat-card"><div class="stat-number" id="taskCount">0</div><div class="stat-label">Tasks</div></div>
+            <div class="stat-card"><div class="stat-number" id="projectCount">0</div><div class="stat-label">Projects</div></div>
+            <div class="stat-card"><div class="stat-number" id="tagCount">0</div><div class="stat-label">Tags</div></div>
+          </div>
+          <div class="task-list" id="taskPreview"></div>
         </div>
-        <div class="task-list" id="taskPreview"></div>
       </div>
       <div class="loading-spinner" id="loadingSection">
         <div class="spinner"></div>
@@ -118,164 +149,179 @@
   <!-- TAB: YOUTRACK SYNC -->
   <div class="tab-content" id="tab-youtrack">
     <div class="tab-scroll">
-      <div class="section">
-        <div class="section-title">Connection</div>
-        <div class="form-group">
-          <label for="youtrackToken">YouTrack authentication token</label>
-          <input type="password" id="youtrackToken" placeholder="perm:XXXXXXXXXXXXXXXX" />
-          <div class="form-help">📋 Generate a permanent token in <a href="https://youtrack.nperf.org/settings/tokens" target="_blank">YouTrack Settings</a></div>
+      <div class="card-grid">
+        <div class="card">
+          <div class="card-header"><div class="card-icon">🔌</div><div class="card-title">Connection</div></div>
+          <div class="form-group">
+            <label for="youtrackUrl">YouTrack URL</label>
+            <input type="text" id="youtrackUrl" placeholder="https://youtrack.example.com" />
+            <div class="form-help">Your YouTrack instance's base URL, no trailing slash.</div>
+          </div>
+          <div class="form-group">
+            <label for="youtrackToken">YouTrack authentication token</label>
+            <input type="password" id="youtrackToken" placeholder="perm:XXXXXXXXXXXXXXXX" />
+            <div class="form-help">📋 Generate a permanent token in <a href="#" id="tokenSettingsLink" target="_blank">YouTrack Settings</a></div>
+          </div>
         </div>
-      </div>
 
-      <div class="section">
-        <div class="section-title">Saved presets</div>
-        <div class="form-group">
-          <label for="queryPresetSelect">Load a preset</label>
-          <div style="display: flex; gap: 8px;">
-            <select id="queryPresetSelect" style="flex: 1;">
-              <option value="">— Custom —</option>
-            </select>
-            <button id="deletePresetBtn" class="btn-secondary" type="button" disabled>🗑</button>
+        <div class="card">
+          <div class="card-header"><div class="card-icon">📋</div><div class="card-title">Saved presets</div></div>
+          <div class="form-group">
+            <label for="queryPresetSelect">Load a preset</label>
+            <div style="display: flex; gap: 8px;">
+              <select id="queryPresetSelect" style="flex: 1;">
+                <option value="">— Custom —</option>
+              </select>
+              <button id="deletePresetBtn" class="btn-secondary" type="button" disabled>🗑</button>
+            </div>
+            <div class="form-help">Loading a preset fills in the query, assignee, automatic sprint, automatic sync and status-handling settings below.</div>
           </div>
-          <div class="form-help">Loading a preset fills in the query, assignee, automatic sprint, automatic sync and status-handling settings below.</div>
         </div>
-      </div>
 
-      <div class="section">
-        <div class="section-title">Ticket filter</div>
-        <div class="form-group">
-          <label for="youtrackQuery">YouTrack query</label>
-          <textarea id="youtrackQuery" rows="3" placeholder="Ex: Level: -Epic,-{Big Epic},-Goal project: {Web sites &amp; services} State: -Canceled -Done Sprints: {CURRENT_SPRINT}"></textarea>
-          <div class="form-help">Standard YouTrack search syntax. Use <code>{CURRENT_SPRINT}</code> to automatically insert the current sprint (see Automatic sprint below).</div>
+        <div class="card card-wide">
+          <div class="card-header"><div class="card-icon">🔍</div><div class="card-title">Ticket filter</div></div>
+          <div class="form-group">
+            <label for="youtrackQuery">YouTrack query</label>
+            <textarea id="youtrackQuery" rows="3" placeholder="Ex: Level: -Epic,-{Big Epic},-Goal project: {Web sites &amp; services} State: -Canceled -Done Sprints: {CURRENT_SPRINT}"></textarea>
+            <div class="form-help">Standard YouTrack search syntax. Use <code>{CURRENT_SPRINT}</code> to automatically insert the current sprint (see Automatic sprint below).</div>
+          </div>
+          <div class="form-group">
+            <label for="youtrackAssigneeFilter">Assignee (optional)</label>
+            <input type="text" id="youtrackAssigneeFilter" placeholder="ex: YCD" />
+            <div class="form-help">If set, an <code>Assignee: ...</code> filter is automatically appended to the query above.</div>
+          </div>
         </div>
-        <div class="form-group">
-          <label for="youtrackAssigneeFilter">Assignee (optional)</label>
-          <input type="text" id="youtrackAssigneeFilter" placeholder="ex: YCD" />
-          <div class="form-help">If set, an <code>Assignee: ...</code> filter is automatically appended to the query above.</div>
-        </div>
-      </div>
 
-      <details id="sprintDetails">
-        <summary>⚙️ Automatic sprint ({CURRENT_SPRINT})</summary>
-        <div class="details-body">
-          <div class="form-group">
-            <div class="checkbox-wrapper">
-              <input type="checkbox" id="enableSprintAuto" />
-              <label for="enableSprintAuto">Enable automatic sprint</label>
+        <details class="card card-wide" id="sprintDetails">
+          <summary>
+            <div class="card-header"><div class="card-icon">📅</div><div class="card-title">Automatic sprint ({CURRENT_SPRINT})</div></div>
+          </summary>
+          <div class="details-body">
+            <div class="form-group">
+              <div class="checkbox-wrapper">
+                <input type="checkbox" id="enableSprintAuto" />
+                <label for="enableSprintAuto">Enable automatic sprint</label>
+              </div>
+              <div class="form-help">If disabled, <code>{CURRENT_SPRINT}</code> is not substituted in the query (useful to avoid clashing with a sprint filter already hardcoded).</div>
             </div>
-            <div class="form-help">If disabled, <code>{CURRENT_SPRINT}</code> is not substituted in the query (useful to avoid clashing with a sprint filter already hardcoded).</div>
-          </div>
-          <div class="form-group">
-            <label for="sprintFormat">Sprint tag format</label>
-            <input type="text" id="sprintFormat" placeholder="Ex: {YEAR_SHORT}S{SPRINT_NUM_PADDED}" />
-            <div class="form-help">
-              Placeholders: <code>{YEAR}</code> (2026), <code>{YEAR_SHORT}</code> (26),
-              <code>{SPRINT_NUM}</code> (8), <code>{SPRINT_NUM_PADDED}</code> (08) — e.g.: <code>26S08</code>
+            <div class="form-group">
+              <label for="sprintFormat">Sprint tag format</label>
+              <input type="text" id="sprintFormat" placeholder="Ex: {YEAR_SHORT}S{SPRINT_NUM_PADDED}" />
+              <div class="form-help">
+                Placeholders: <code>{YEAR}</code> (2026), <code>{YEAR_SHORT}</code> (26),
+                <code>{SPRINT_NUM}</code> (8), <code>{SPRINT_NUM_PADDED}</code> (08) — e.g.: <code>26S08</code>
+              </div>
             </div>
-          </div>
-          <div class="form-group">
-            <label for="sprintDuration">Sprint duration (working days)</label>
-            <input type="number" id="sprintDuration" min="1" max="60" placeholder="15" />
-          </div>
-          <div class="form-group">
-            <label for="sprintStartDate">Start date (Monday of sprint #1)</label>
-            <input type="date" id="sprintStartDate" />
-          </div>
-          <div class="form-group">
-            <div class="checkbox-wrapper">
-              <input type="checkbox" id="useSprintEndDateAsDueDate" />
-              <label for="useSprintEndDateAsDueDate">Use sprint end date as due date</label>
+            <div class="form-group">
+              <label for="sprintDuration">Sprint duration (working days)</label>
+              <input type="number" id="sprintDuration" min="1" max="60" placeholder="15" />
             </div>
-            <div class="form-help">If your YouTrack instance has no Due Date field, set tickets' due date to the last day of the current sprint instead.</div>
-          </div>
-          <div class="form-group">
-            <div class="checkbox-wrapper">
-              <input type="checkbox" id="allowSprintCarryOver" />
-              <label for="allowSprintCarryOver">Allow tickets to carry over to the next sprint</label>
+            <div class="form-group">
+              <label for="sprintStartDate">Start date (Monday of sprint #1)</label>
+              <input type="date" id="sprintStartDate" />
             </div>
-            <div class="form-help">If checked, the sprint end date above is not enforced (falls back to the Due Date field mapping, or no due date) — for teams whose tickets aren't required to finish within the sprint they're filed in.</div>
-          </div>
-          <div class="action-buttons">
-            <button id="testSprintConfigBtn" class="btn-secondary">🧪 Test configuration</button>
-          </div>
-        </div>
-      </details>
-
-      <details id="scheduleDetails">
-        <summary>🕒 Automatic sync</summary>
-        <div class="details-body">
-          <div class="form-group">
-            <label for="syncInterval">Sync interval</label>
-            <select id="syncInterval">
-              <option value="0.25">Every 15 minutes</option>
-              <option value="0.5">Every 30 minutes</option>
-              <option value="1">Every hour</option>
-              <option value="2" selected>Every 2 hours</option>
-              <option value="4">Every 4 hours</option>
-              <option value="8">Every 8 hours</option>
-              <option value="24">Daily</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <div class="checkbox-wrapper">
-              <input type="checkbox" id="enableAutoSync" checked />
-              <label for="enableAutoSync">Enable automatic sync</label>
+            <div class="form-group">
+              <div class="checkbox-wrapper">
+                <input type="checkbox" id="useSprintEndDateAsDueDate" />
+                <label for="useSprintEndDateAsDueDate">Use sprint end date as due date</label>
+              </div>
+              <div class="form-help">If your YouTrack instance has no Due Date field, set tickets' due date to the last day of the current sprint instead.</div>
+            </div>
+            <div class="form-group">
+              <div class="checkbox-wrapper">
+                <input type="checkbox" id="allowSprintCarryOver" />
+                <label for="allowSprintCarryOver">Allow tickets to carry over to the next sprint</label>
+              </div>
+              <div class="form-help">If checked, the sprint end date above is not enforced (falls back to the Due Date field mapping, or no due date) — for teams whose tickets aren't required to finish within the sprint they're filed in.</div>
+            </div>
+            <div class="action-buttons">
+              <button id="testSprintConfigBtn" class="btn-secondary">🧪 Test configuration</button>
             </div>
           </div>
-        </div>
-      </details>
+        </details>
 
-      <details id="statusDetails">
-        <summary>✅ Status handling</summary>
-        <div class="details-body">
-          <div class="form-group">
-            <label for="terminalStatuses">Statuses to mark as Done</label>
-            <input type="text" id="terminalStatuses" placeholder="Ex: Done, MEP, TO_MEP, Canceled" />
-            <div class="form-help">Comma-separated YouTrack statuses (case-insensitive). Matching tickets are marked Done in SuperProductivity instead of getting a status tag — plugins can't archive tasks directly, so this is the closest equivalent; SuperProductivity's own archiving takes over from there.</div>
-          </div>
-          <div class="form-group">
-            <div class="checkbox-wrapper">
-              <input type="checkbox" id="autoArchiveRemoved" />
-              <label for="autoArchiveRemoved">Mark tickets Done when they no longer match the query</label>
+        <details class="card" id="scheduleDetails">
+          <summary>
+            <div class="card-header"><div class="card-icon">🕒</div><div class="card-title">Automatic sync</div></div>
+          </summary>
+          <div class="details-body">
+            <div class="form-group">
+              <label for="syncInterval">Sync interval</label>
+              <select id="syncInterval">
+                <option value="0.25">Every 15 minutes</option>
+                <option value="0.5">Every 30 minutes</option>
+                <option value="1">Every hour</option>
+                <option value="2" selected>Every 2 hours</option>
+                <option value="4">Every 4 hours</option>
+                <option value="8">Every 8 hours</option>
+                <option value="24">Daily</option>
+              </select>
             </div>
-            <div class="form-help">E.g. a ticket removed from the current sprint. Only affects tickets seen in a previous sync — has no effect the first time you enable it. An empty sync result is ignored (treated as a likely misconfigured query) so it never marks everything Done at once. Be careful if you frequently change the query/sprint filter, since tickets that simply fall outside the new query will also get marked Done.</div>
+            <div class="form-group">
+              <div class="checkbox-wrapper">
+                <input type="checkbox" id="enableAutoSync" checked />
+                <label for="enableAutoSync">Enable automatic sync</label>
+              </div>
+            </div>
           </div>
-        </div>
-      </details>
+        </details>
 
-      <details id="fieldMappingDetails">
-        <summary>🛠️ Field mapping</summary>
-        <div class="details-body">
+        <details class="card" id="fieldMappingDetails">
+          <summary>
+            <div class="card-header"><div class="card-icon">🛠️</div><div class="card-title">Field mapping</div></div>
+          </summary>
+          <div class="details-body">
+            <div class="form-group">
+              <label for="dueDateFieldName">Due date custom field name</label>
+              <input type="text" id="dueDateFieldName" placeholder="Due Date" />
+              <div class="form-help">The name of the YouTrack custom field holding the due date, exactly as it appears in your instance (case-sensitive). Defaults to "Due Date".</div>
+            </div>
+          </div>
+        </details>
+
+        <details class="card card-wide" id="statusDetails">
+          <summary>
+            <div class="card-header"><div class="card-icon">✅</div><div class="card-title">Status handling</div></div>
+          </summary>
+          <div class="details-body">
+            <div class="form-group">
+              <label for="terminalStatuses">Statuses to mark as Done</label>
+              <input type="text" id="terminalStatuses" placeholder="Ex: Done, MEP, TO_MEP, Canceled" />
+              <div class="form-help">Comma-separated YouTrack statuses (case-insensitive). Matching tickets are marked Done in SuperProductivity instead of getting a status tag — plugins can't archive tasks directly, so this is the closest equivalent; SuperProductivity's own archiving takes over from there.</div>
+            </div>
+            <div class="form-group">
+              <div class="checkbox-wrapper">
+                <input type="checkbox" id="autoArchiveRemoved" />
+                <label for="autoArchiveRemoved">Mark tickets Done when they no longer match the query</label>
+              </div>
+              <div class="form-help">E.g. a ticket removed from the current sprint. Only affects tickets seen in a previous sync — has no effect the first time you enable it. An empty sync result is ignored (treated as a likely misconfigured query) so it never marks everything Done at once. Be careful if you frequently change the query/sprint filter, since tickets that simply fall outside the new query will also get marked Done.</div>
+            </div>
+          </div>
+        </details>
+
+        <div class="card card-wide">
+          <div class="card-header"><div class="card-icon">💾</div><div class="card-title">Save as preset</div></div>
           <div class="form-group">
-            <label for="dueDateFieldName">Due date custom field name</label>
-            <input type="text" id="dueDateFieldName" placeholder="Due Date" />
-            <div class="form-help">The name of the YouTrack custom field holding the due date, exactly as it appears in your instance (case-sensitive). Defaults to "Due Date".</div>
+            <label for="presetNameInput">Save current settings as a new preset</label>
+            <div style="display: flex; gap: 8px;">
+              <input type="text" id="presetNameInput" placeholder="Preset name" style="flex: 1;" />
+              <button id="savePresetBtn" class="btn-secondary" type="button">💾 Save as preset</button>
+            </div>
+            <div class="form-help">Once everything above is set up the way you want, save it here to quickly switch back to it later.</div>
           </div>
         </div>
-      </details>
 
-      <div class="section">
-        <div class="section-title">Save as preset</div>
-        <div class="form-group">
-          <label for="presetNameInput">Save current settings as a new preset</label>
-          <div style="display: flex; gap: 8px;">
-            <input type="text" id="presetNameInput" placeholder="Preset name" style="flex: 1;" />
-            <button id="savePresetBtn" class="btn-secondary" type="button">💾 Save as preset</button>
+        <div class="card card-wide hidden" id="syncPreviewSection">
+          <div class="card-header"><div class="card-icon">👀</div><div class="card-title">Preview</div></div>
+          <div class="preview-stats">
+            <div class="stat-card"><div class="stat-number" id="syncNewCount">0</div><div class="stat-label">New</div></div>
+            <div class="stat-card"><div class="stat-number" id="syncUpdateCount">0</div><div class="stat-label">To update</div></div>
+            <div class="stat-card"><div class="stat-number" id="syncUnchangedCount">0</div><div class="stat-label">Already in sync</div></div>
+            <div class="stat-card"><div class="stat-number" id="syncSkipCount">0</div><div class="stat-label">Already archived</div></div>
+            <div class="stat-card"><div class="stat-number" id="syncRemoveCount">0</div><div class="stat-label">Removed</div></div>
           </div>
-          <div class="form-help">Once everything above is set up the way you want, save it here to quickly switch back to it later.</div>
+          <div class="task-list" id="syncTaskPreview"></div>
         </div>
-      </div>
-
-      <div class="section hidden" id="syncPreviewSection">
-        <div class="section-title">Preview</div>
-        <div class="preview-stats" style="grid-template-columns: repeat(5, 1fr);">
-          <div class="stat-card"><div class="stat-number" id="syncNewCount">0</div><div class="stat-label">New</div></div>
-          <div class="stat-card"><div class="stat-number" id="syncUpdateCount">0</div><div class="stat-label">To update</div></div>
-          <div class="stat-card"><div class="stat-number" id="syncUnchangedCount">0</div><div class="stat-label">Already in sync</div></div>
-          <div class="stat-card"><div class="stat-number" id="syncSkipCount">0</div><div class="stat-label">Already archived</div></div>
-          <div class="stat-card"><div class="stat-number" id="syncRemoveCount">0</div><div class="stat-label">Removed</div></div>
-        </div>
-        <div class="task-list" id="syncTaskPreview"></div>
       </div>
 
       <div class="loading-spinner" id="syncLoadingSection">
@@ -328,6 +374,14 @@
     el.textContent = timestamp ? `Last synced: ${formatRelativeTime(timestamp)}` : 'Never synced yet';
   }
 
+  function updateTokenSettingsLink() {
+    const url = document.getElementById('youtrackUrl').value.trim().replace(/\/+$/, '');
+    const link = document.getElementById('tokenSettingsLink');
+    link.href = url ? `${url}/settings/tokens` : '#';
+  }
+
+  document.getElementById('youtrackUrl').addEventListener('input', updateTokenSettingsLink);
+
   function escapeHtml(text) {
     const map = {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'};
     return text.replace(/[&<>"']/g, m => map[m]);
@@ -349,6 +403,7 @@
 
   function getFormConfig() {
     return {
+      youtrackUrl: document.getElementById('youtrackUrl').value.trim().replace(/\/+$/, ''),
       token: document.getElementById('youtrackToken').value.trim(),
       query: document.getElementById('youtrackQuery').value.trim(),
       assignee: document.getElementById('youtrackAssigneeFilter').value.trim(),
@@ -382,6 +437,10 @@
     if (!id) return;
     const preset = queryPresets.find((p) => p.id === id);
     if (!preset) return;
+    if (preset.youtrackUrl) {
+      document.getElementById('youtrackUrl').value = preset.youtrackUrl;
+      updateTokenSettingsLink();
+    }
     document.getElementById('youtrackQuery').value = preset.query || '';
     document.getElementById('youtrackAssigneeFilter').value = preset.assignee || '';
     document.getElementById('sprintFormat').value = preset.sprintFormat || '{YEAR_SHORT}S{SPRINT_NUM_PADDED}';
@@ -414,6 +473,7 @@
     const presetData = {
       id: existing?.id,
       name,
+      youtrackUrl: config.youtrackUrl,
       query: config.query,
       assignee: config.assignee,
       sprintFormat: config.sprintFormat,
@@ -457,12 +517,14 @@
       const config = await window.parent.loadConfig();
       currentConfig = config;
       if (config.token) {
+        document.getElementById('youtrackUrl').value = config.youtrackUrl || '';
         document.getElementById('youtrackToken').value = config.token;
         document.getElementById('youtrackQuery').value = config.query || '';
         document.getElementById('youtrackAssigneeFilter').value = config.assignee || '';
         document.getElementById('syncInterval').value = config.syncIntervalHours || 2;
         document.getElementById('enableAutoSync').checked = config.enableAutoSync !== false;
       }
+      updateTokenSettingsLink();
       document.getElementById('sprintFormat').value = config.sprintFormat || '{YEAR_SHORT}S{SPRINT_NUM_PADDED}';
       document.getElementById('sprintDuration').value = config.sprintDurationDays || 15;
       document.getElementById('sprintStartDate').value = config.sprintStartDate || '';
@@ -507,8 +569,8 @@
 
   document.getElementById('saveConfigBtn').addEventListener('click', async () => {
     const config = getFormConfig();
-    if (!config.token || !config.query) {
-      showSyncStatus('Token and Query are required', 'error');
+    if (!config.youtrackUrl || !config.token || !config.query) {
+      showSyncStatus('YouTrack URL, Token and Query are required', 'error');
       return;
     }
     try {
@@ -521,15 +583,15 @@
 
   document.getElementById('testConnectionBtn').addEventListener('click', async () => {
     const config = getFormConfig();
-    if (!config.token || !config.query) {
-      showSyncStatus('Token and Query are required', 'error');
+    if (!config.youtrackUrl || !config.token || !config.query) {
+      showSyncStatus('YouTrack URL, Token and Query are required', 'error');
       return;
     }
     try {
       document.getElementById('syncLoadingSection').classList.add('show');
       const resolvedQuery = await window.parent.resolveYouTrackQuery(config.query, config);
       const dueDateOverride = await window.parent.computeDueDateOverride(config);
-      const tasks = await window.parent.fetchFromYouTrack(config.token, resolvedQuery, config.terminalStatuses, config.dueDateFieldName, dueDateOverride);
+      const tasks = await window.parent.fetchFromYouTrack(config.youtrackUrl, config.token, resolvedQuery, config.terminalStatuses, config.dueDateFieldName, dueDateOverride);
       document.getElementById('syncLoadingSection').classList.remove('show');
       showSyncStatus(`Connection successful! ${tasks.length} task(s) found`, 'success');
     } catch (error) {
@@ -578,15 +640,15 @@
 
   document.getElementById('syncNowBtn').addEventListener('click', async () => {
     const config = getFormConfig();
-    if (!config.token || !config.query) {
-      showSyncStatus('Token and Query are required', 'error');
+    if (!config.youtrackUrl || !config.token || !config.query) {
+      showSyncStatus('YouTrack URL, Token and Query are required', 'error');
       return;
     }
     try {
       document.getElementById('syncLoadingSection').classList.add('show');
       const resolvedQuery = await window.parent.resolveYouTrackQuery(config.query, config);
       const dueDateOverride = await window.parent.computeDueDateOverride(config);
-      const tasks = await window.parent.fetchFromYouTrack(config.token, resolvedQuery, config.terminalStatuses, config.dueDateFieldName, dueDateOverride);
+      const tasks = await window.parent.fetchFromYouTrack(config.youtrackUrl, config.token, resolvedQuery, config.terminalStatuses, config.dueDateFieldName, dueDateOverride);
       const classification = await window.parent.classifySyncTasks(tasks, { autoArchiveRemoved: config.autoArchiveRemoved });
       pendingSyncTasks = tasks;
       pendingSyncOptions = { autoArchiveRemoved: config.autoArchiveRemoved };
