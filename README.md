@@ -100,6 +100,33 @@ next sync — they're never auto-marked Done unless your query still returns the
 plugin actively mark them Done when they transition, make sure your query doesn't exclude the
 listed statuses.
 
+⚠️ This list only controls what happens to a ticket *after* it's fetched — it does not filter
+what the query returns. If your query keeps matching tickets in these statuses (no `-Done
+-Canceled -MEP` etc. in the query itself), they'll keep showing up in every "Sync now" preview as
+**Already archived** forever (correctly skipped, no duplicate/update — just expected, recurring
+noise). Add the exclusion to the query text itself if you'd rather they stop being fetched at all
+once finished.
+
+**Mark tickets Done when they no longer match the query** (off by default): by default, a ticket
+that simply disappears from your query results (e.g. removed from the current sprint, reassigned,
+or otherwise no longer matching) is left completely untouched in SuperProductivity — the plugin
+only ever acts on tickets the query actually returns. Enabling this checkbox closes that gap: any
+ticket seen in a previous sync that's missing from the current one gets marked **Done** (the
+same archiving proxy used above).
+
+- Only affects tickets that were seen in a *previous* sync with this checkbox already enabled —
+  turning it on has no effect the very first time, since there's no baseline yet to compare
+  against. From the next sync onward it works as expected.
+- An empty sync result is ignored entirely (nothing gets marked Done), since that's more likely a
+  misconfigured query or expired token than "every ticket left the sprint" — without this guard a
+  bad query could wipe out everything in one shot.
+- The CSV import tab never affects or is affected by this tracking — it's scoped to the YouTrack
+  Sync tab only.
+- ⚠️ If you regularly change the query/sprint filter itself (not just what's *in* the sprint),
+  tickets that fall outside the new query will also get marked Done, even though they didn't
+  technically "leave" anything — they just stopped matching. Leave this off if you switch queries
+  often.
+
 ### 7. Field mapping (optional, collapsed by default)
 
 YouTrack's `Due Date` custom field is read by name. If your instance names that field
@@ -115,9 +142,10 @@ it's enabled and carry-over isn't allowed.
 - **Test connection** — fetches matching tickets and reports a count, without importing anything.
 - **Sync now** — fetches matching tickets and classifies them into **New**, **To update**
   (something actually changed — title, notes, tags, due date, status or project), **Already in
-  sync** (matches an existing task but nothing differs — no-op), and **Archived** (matches a
-  ticket already correctly archived as Done), and shows a preview list before anything is
-  written. **Confirm sync** applies it; **Cancel**
+  sync** (matches an existing task but nothing differs — no-op), **Archived** (matches a
+  ticket already correctly archived as Done), and **Removed** (only when "Mark tickets Done when
+  they no longer match the query" is enabled — see Status handling above), and shows a preview
+  list before anything is written. **Confirm sync** applies it; **Cancel**
   discards it.
 - **Save** — persists the token, query, assignee, sprint config, schedule, status handling,
   field mapping and presets.
@@ -258,7 +286,7 @@ Open to contribution. To report a bug or suggest an improvement:
 
 ---
 
-**Version**: 1.6.0
+**Version**: 1.7.0
 **Compatibility**: SuperProductivity 14.0.0+
 **Author**: ycoissard
 
