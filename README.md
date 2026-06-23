@@ -34,11 +34,13 @@ described below apply no matter which tab you use.
 
 ### 1. Connection
 
-Paste a permanent YouTrack API token (generate one in YouTrack under **Settings → Tokens**).
+Enter your YouTrack instance's base URL (e.g. `https://youtrack.example.com`, no trailing slash),
+then paste a permanent YouTrack API token (generate one in YouTrack under **Settings → Tokens** —
+the help link under the token field opens that page directly once the URL above is filled in).
 
 ### 2. Saved presets
 
-A preset captures the **whole** sync configuration except the token: query, assignee, automatic
+A preset captures the **whole** sync configuration except the token: URL, query, assignee, automatic
 sprint settings, automatic sync schedule, and the "statuses to mark as Done" list (see below).
 Name and save your current settings, then switch between presets (e.g. different boards or
 sprints) without retyping anything. Presets are stored alongside the rest of the plugin config
@@ -250,6 +252,11 @@ This plugin requests no elevated permissions (`permissions: []` in `manifest.jso
   `persistDataSynced`, `registerHeaderButton`, `showIndexHtmlAsView`, `updateTask`.
 - **`networkUsage`**: the plugin makes direct `fetch()` calls to whatever YouTrack instance URL
   you configure, using the API token you provide, to search/fetch issues. No other network access.
+- **Token storage**: your API token is stored in this device's `localStorage` only — it is never
+  included in the synced profile config (`persistDataSynced`), so it won't end up in a profile
+  backup/export or get copied to another device alongside the rest of your settings. Everything
+  else (URL, query, presets, sprint/sync settings) is stored in the regular synced config and
+  will follow you across devices; the token has to be re-entered on each one.
 
 ## 📝 Current limitations
 
@@ -286,7 +293,7 @@ Open to contribution. To report a bug or suggest an improvement:
 
 ---
 
-**Version**: 1.7.0
+**Version**: 1.7.6
 **Compatibility**: SuperProductivity 14.0.0+
 **Author**: ycoissard
 

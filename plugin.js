@@ -1,11 +1,11 @@
 
 /**
- * YouTrack CSV Importer Plugin for SuperProductivity v1.4.0
+ * YouTrack CSV Importer Plugin for SuperProductivity v1.7.6
  * Imports YouTrack issues from CSV export or syncs directly with YouTrack API
  */
 
-const YOUTRACK_BASE_URL = 'https://youtrack.nperf.org';
 const CONFIG_KEY = 'youtrack-sync-config';
+const TOKEN_KEY = 'youtrack-api-token';
 const SYNC_INTERVAL_KEY = 'youtrack-last-sync';
 const LAST_SYNC_TIMESTAMP_KEY = 'youtrack-last-sync-display';
 const LAST_SYNCED_ISSUE_IDS_KEY = 'youtrack-last-synced-issue-ids';
@@ -23,24 +23,39 @@ PluginAPI.registerHeaderButton({
 });
 
 /**
- * Save configuration
+ * Save configuration. The API token is deliberately kept out of the synced blob and stored in
+ * localStorage instead (device-local only) - persistDataSynced is meant to sync across devices/
+ * profile backups, which isn't somewhere a secret API token should end up.
  */
 async function saveConfig(config) {
+  const { token, ...rest } = config;
+  if (token) {
+    localStorage.setItem(TOKEN_KEY, token);
+  } else {
+    localStorage.removeItem(TOKEN_KEY);
+  }
   await PluginAPI.persistDataSynced(JSON.stringify({
-    [CONFIG_KEY]: config,
+    [CONFIG_KEY]: rest,
   }));
 }
 
 /**
- * Load configuration
+ * Load configuration. The token is read from localStorage (see saveConfig) and merged back in -
+ * older versions of this plugin saved the token inside the synced blob itself, so a leftover
+ * `config.token` there is migrated into localStorage on first load after upgrading.
  */
 async function loadConfig() {
   const data = await PluginAPI.loadSyncedData();
-  if (data) {
-    const parsed = JSON.parse(data);
-    return parsed[CONFIG_KEY] || {};
+  const parsed = data ? JSON.parse(data) : {};
+  const config = parsed[CONFIG_KEY] || {};
+
+  let token = localStorage.getItem(TOKEN_KEY);
+  if (!token && config.token) {
+    token = config.token;
+    localStorage.setItem(TOKEN_KEY, token);
   }
-  return {};
+
+  return { ...config, token: token || '' };
 }
 
 // ==========================================
@@ -58,6 +73,7 @@ function saveQueryPreset(config, preset) {
   const updated = {
     id,
     name: preset.name,
+    youtrackUrl: preset.youtrackUrl || '',
     query: preset.query,
     assignee: preset.assignee || '',
     sprintFormat: preset.sprintFormat || DEFAULT_SPRINT_FORMAT,
@@ -284,19 +300,32 @@ function parseTerminalStatuses(raw) {
 }
 
 /**
+ * Strips a trailing slash from a user-entered YouTrack instance URL, and throws a clear error
+ * if it's missing - every sync/test path needs a base URL to build the API request against.
+ */
+function normalizeYouTrackUrl(youtrackUrl) {
+  const trimmed = (youtrackUrl || '').trim();
+  if (!trimmed) {
+    throw new Error('YouTrack URL is required (e.g. https://youtrack.example.com)');
+  }
+  return trimmed.replace(/\/+$/, '');
+}
+
+/**
  * Fetch issues from YouTrack API using a raw YouTrack query string.
  * Paginates with $skip until a page returns fewer than SYNC_PAGE_SIZE issues,
  * up to a SYNC_MAX_ISSUES safety cap (logged if hit, so truncation isn't silent).
  * `terminalStatusesRaw` is a comma-separated list of statuses (e.g. "Done, MEP, Canceled")
  * that should mark the resulting task as done instead of adding a status tag.
  */
-async function fetchFromYouTrack(token, query, terminalStatusesRaw, dueDateFieldName, dueDateOverride) {
+async function fetchFromYouTrack(youtrackUrl, token, query, terminalStatusesRaw, dueDateFieldName, dueDateOverride) {
   try {
+    const baseUrl = normalizeYouTrackUrl(youtrackUrl);
     const allIssues = [];
     let skip = 0;
 
     while (true) {
-      const url = new URL(`${YOUTRACK_BASE_URL}/api/issues`);
+      const url = new URL(`${baseUrl}/api/issues`);
       url.searchParams.append('query', query);
       url.searchParams.append(
           'fields',
@@ -438,7 +467,7 @@ async function autoSyncYouTrack() {
   try {
     const config = await loadConfig();
 
-    if (!config.token || !config.query || !config.enableAutoSync) {
+    if (!config.token || !config.query || !config.youtrackUrl || !config.enableAutoSync) {
       return; // Not configured or disabled
     }
 
@@ -452,6 +481,7 @@ async function autoSyncYouTrack() {
     }
 
     const tasks = await fetchFromYouTrack(
+        config.youtrackUrl,
         config.token,
         resolveYouTrackQuery(config.query, config),
         config.terminalStatuses,
