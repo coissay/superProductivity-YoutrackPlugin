@@ -233,6 +233,13 @@
             <input type="text" id="terminalStatuses" placeholder="Ex: Done, MEP, TO_MEP, Canceled" />
             <div class="form-help">Comma-separated YouTrack statuses (case-insensitive). Matching tickets are marked Done in SuperProductivity instead of getting a status tag — plugins can't archive tasks directly, so this is the closest equivalent; SuperProductivity's own archiving takes over from there.</div>
           </div>
+          <div class="form-group">
+            <div class="checkbox-wrapper">
+              <input type="checkbox" id="autoArchiveRemoved" />
+              <label for="autoArchiveRemoved">Mark tickets Done when they no longer match the query</label>
+            </div>
+            <div class="form-help">E.g. a ticket removed from the current sprint. Only affects tickets seen in a previous sync — has no effect the first time you enable it. An empty sync result is ignored (treated as a likely misconfigured query) so it never marks everything Done at once. Be careful if you frequently change the query/sprint filter, since tickets that simply fall outside the new query will also get marked Done.</div>
+          </div>
         </div>
       </details>
 
@@ -261,11 +268,12 @@
 
       <div class="section hidden" id="syncPreviewSection">
         <div class="section-title">Preview</div>
-        <div class="preview-stats" style="grid-template-columns: repeat(4, 1fr);">
+        <div class="preview-stats" style="grid-template-columns: repeat(5, 1fr);">
           <div class="stat-card"><div class="stat-number" id="syncNewCount">0</div><div class="stat-label">New</div></div>
           <div class="stat-card"><div class="stat-number" id="syncUpdateCount">0</div><div class="stat-label">To update</div></div>
           <div class="stat-card"><div class="stat-number" id="syncUnchangedCount">0</div><div class="stat-label">Already in sync</div></div>
-          <div class="stat-card"><div class="stat-number" id="syncSkipCount">0</div><div class="stat-label">Archived</div></div>
+          <div class="stat-card"><div class="stat-number" id="syncSkipCount">0</div><div class="stat-label">Already archived</div></div>
+          <div class="stat-card"><div class="stat-number" id="syncRemoveCount">0</div><div class="stat-label">Removed</div></div>
         </div>
         <div class="task-list" id="syncTaskPreview"></div>
       </div>
@@ -296,6 +304,7 @@
   let allTagsWithColors = {};
   let queryPresets = [];
   let pendingSyncTasks = [];
+  let pendingSyncOptions = {};
   let currentConfig = {};
 
   function showError(msg) {
@@ -353,6 +362,7 @@
       dueDateFieldName: document.getElementById('dueDateFieldName').value.trim(),
       useSprintEndDateAsDueDate: document.getElementById('useSprintEndDateAsDueDate').checked,
       allowSprintCarryOver: document.getElementById('allowSprintCarryOver').checked,
+      autoArchiveRemoved: document.getElementById('autoArchiveRemoved').checked,
       queryPresets: queryPresets,
     };
   }
@@ -384,6 +394,7 @@
     document.getElementById('dueDateFieldName').value = preset.dueDateFieldName || '';
     document.getElementById('useSprintEndDateAsDueDate').checked = preset.useSprintEndDateAsDueDate === true;
     document.getElementById('allowSprintCarryOver').checked = preset.allowSprintCarryOver === true;
+    document.getElementById('autoArchiveRemoved').checked = preset.autoArchiveRemoved === true;
   });
 
   document.getElementById('savePresetBtn').addEventListener('click', async () => {
@@ -415,6 +426,7 @@
       dueDateFieldName: config.dueDateFieldName,
       useSprintEndDateAsDueDate: config.useSprintEndDateAsDueDate,
       allowSprintCarryOver: config.allowSprintCarryOver,
+      autoArchiveRemoved: config.autoArchiveRemoved,
     };
     const updatedConfig = await window.parent.saveQueryPreset(config, presetData);
     await window.parent.saveConfig(updatedConfig);
@@ -459,6 +471,7 @@
       document.getElementById('dueDateFieldName').value = config.dueDateFieldName || '';
       document.getElementById('useSprintEndDateAsDueDate').checked = config.useSprintEndDateAsDueDate === true;
       document.getElementById('allowSprintCarryOver').checked = config.allowSprintCarryOver === true;
+      document.getElementById('autoArchiveRemoved').checked = config.autoArchiveRemoved === true;
       queryPresets = Array.isArray(config.queryPresets) ? config.queryPresets : [];
       renderPresetOptions();
     } catch (error) {
@@ -532,17 +545,20 @@
     document.getElementById('syncUpdateCount').textContent = changed.length;
     document.getElementById('syncUnchangedCount').textContent = unchanged.length;
     document.getElementById('syncSkipCount').textContent = classification.toSkip.length;
+    document.getElementById('syncRemoveCount').textContent = classification.toRemove.length;
 
     const items = [
       ...classification.toCreate.map((task) => ({ task, badge: 'New' })),
       ...changed.map((u) => ({ task: u.incoming, badge: 'To update' })),
+      ...classification.toRemove.map((task) => ({ task, badge: 'Removed' })),
     ];
 
     const preview = document.getElementById('syncTaskPreview');
     const itemsToShow = items.slice(0, 20);
-    preview.innerHTML = itemsToShow.map(({ task, badge }) =>
-        `<div class="task-item"><div class="task-title">📌 ${escapeHtml(task.title)}</div><div class="task-meta"><strong>Project:</strong> ${escapeHtml(task.project)} • <strong>${badge}</strong></div></div>`
-    ).join('');
+    preview.innerHTML = itemsToShow.map(({ task, badge }) => {
+      const projectMeta = task.project ? `<strong>Project:</strong> ${escapeHtml(task.project)} • ` : '';
+      return `<div class="task-item"><div class="task-title">📌 ${escapeHtml(task.title)}</div><div class="task-meta">${projectMeta}<strong>${badge}</strong></div></div>`;
+    }).join('');
     if (items.length > 20) {
       preview.innerHTML += `<div class="more-tasks">⋯ and ${items.length - 20} more task(s)</div>`;
     }
@@ -557,6 +573,7 @@
     document.getElementById('syncNormalButtons').classList.remove('hidden');
     document.getElementById('syncPreviewButtons').classList.add('hidden');
     pendingSyncTasks = [];
+    pendingSyncOptions = {};
   }
 
   document.getElementById('syncNowBtn').addEventListener('click', async () => {
@@ -570,8 +587,9 @@
       const resolvedQuery = await window.parent.resolveYouTrackQuery(config.query, config);
       const dueDateOverride = await window.parent.computeDueDateOverride(config);
       const tasks = await window.parent.fetchFromYouTrack(config.token, resolvedQuery, config.terminalStatuses, config.dueDateFieldName, dueDateOverride);
-      const classification = await window.parent.classifySyncTasks(tasks);
+      const classification = await window.parent.classifySyncTasks(tasks, { autoArchiveRemoved: config.autoArchiveRemoved });
       pendingSyncTasks = tasks;
+      pendingSyncOptions = { autoArchiveRemoved: config.autoArchiveRemoved };
       await showSyncPreview(tasks, classification);
       document.getElementById('syncLoadingSection').classList.remove('show');
     } catch (error) {
@@ -587,11 +605,12 @@
   document.getElementById('confirmSyncBtn').addEventListener('click', async () => {
     try {
       document.getElementById('syncLoadingSection').classList.add('show');
-      const { created, updated } = await window.parent.importTasks(pendingSyncTasks);
+      const { created, updated, removed } = await window.parent.importTasks(pendingSyncTasks, pendingSyncOptions);
       await window.parent.recordLastSyncTimestamp();
       await refreshLastSyncedLine();
       document.getElementById('syncLoadingSection').classList.remove('show');
-      showSyncStatus(`✅ Synced! ${created} new, ${updated} updated`, 'success');
+      const removedPart = removed > 0 ? `, ${removed} removed` : '';
+      showSyncStatus(`✅ Synced! ${created} new, ${updated} updated${removedPart}`, 'success');
       hideSyncPreview();
     } catch (error) {
       document.getElementById('syncLoadingSection').classList.remove('show');

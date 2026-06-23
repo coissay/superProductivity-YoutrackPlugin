@@ -8,6 +8,7 @@ const YOUTRACK_BASE_URL = 'https://youtrack.nperf.org';
 const CONFIG_KEY = 'youtrack-sync-config';
 const SYNC_INTERVAL_KEY = 'youtrack-last-sync';
 const LAST_SYNC_TIMESTAMP_KEY = 'youtrack-last-sync-display';
+const LAST_SYNCED_ISSUE_IDS_KEY = 'youtrack-last-synced-issue-ids';
 const SYNC_PAGE_SIZE = 200;
 const SYNC_MAX_ISSUES = 1000;
 const DEFAULT_DUE_DATE_FIELD = 'Due Date';
@@ -69,6 +70,7 @@ function saveQueryPreset(config, preset) {
     dueDateFieldName: preset.dueDateFieldName || DEFAULT_DUE_DATE_FIELD,
     useSprintEndDateAsDueDate: !!preset.useSprintEndDateAsDueDate,
     allowSprintCarryOver: !!preset.allowSprintCarryOver,
+    autoArchiveRemoved: !!preset.autoArchiveRemoved,
   };
 
   if (index === -1) {
@@ -140,6 +142,7 @@ function getCurrentSprintTitle(sprintConfig) {
   const durationDays = sprintConfig.sprintDurationDays || DEFAULT_SPRINT_DURATION_DAYS;
   const startDate = new Date(sprintConfig.sprintStartDate || Date.now());
   const now = new Date();
+  now.setHours(0, 0, 0, 0);
 
   const sprintNumber = calculateSprintNumber(startDate, now, durationDays);
   return generateSprintTitle(sprintNumber, format, now.getFullYear());
@@ -407,6 +410,28 @@ function getLastSyncTimestamp() {
 }
 
 /**
+ * Returns the issue IDs returned by the last successful sync that had "auto-archive removed
+ * tickets" enabled - only ever written while that feature is on (see importTasks), so a CSV
+ * import or a sync with the feature disabled never overwrites this list. The first sync after
+ * enabling the feature has no baseline yet, so nothing is flagged as removed that one time.
+ */
+function getLastSyncedIssueIds() {
+  const value = localStorage.getItem(LAST_SYNCED_ISSUE_IDS_KEY);
+  if (!value) {
+    return [];
+  }
+  try {
+    return JSON.parse(value);
+  } catch {
+    return [];
+  }
+}
+
+function setLastSyncedIssueIds(issueIds) {
+  localStorage.setItem(LAST_SYNCED_ISSUE_IDS_KEY, JSON.stringify(issueIds));
+}
+
+/**
  * Auto-sync with YouTrack (called periodically)
  */
 async function autoSyncYouTrack() {
@@ -436,13 +461,16 @@ async function autoSyncYouTrack() {
     recordLastSyncTimestamp();
 
     if (tasks.length > 0) {
-      const { created, updated } = await importTasks(tasks);
+      const { created, updated, removed } = await importTasks(tasks, {
+        autoArchiveRemoved: config.autoArchiveRemoved,
+      });
       localStorage.setItem(SYNC_INTERVAL_KEY, now.toString());
 
-      if (created > 0 || updated > 0) {
+      if (created > 0 || updated > 0 || removed > 0) {
+        const removedPart = removed > 0 ? `, ${removed} removed` : '';
         PluginAPI.notify({
           title: 'YouTrack Sync',
-          body: `${created} new task(s), ${updated} updated`,
+          body: `${created} new task(s), ${updated} updated${removedPart}`,
         });
       }
     }
@@ -658,8 +686,13 @@ function findTaskByIssueId(issueId, taskPool) {
  * - toCreate: no active match and either no archived match, or an archived match whose incoming
  *   status is NOT done - since the Plugin API has no way to un-archive a task, the only option
  *   is to create a new active task for it
+ * - toRemove: only computed when `options.autoArchiveRemoved` is set - active tasks matching an
+ *   issue ID that was returned by the previous sync but is NOT present in this `tasks` batch
+ *   (the ticket no longer matches the query - e.g. it left the sprint). Skipped entirely if
+ *   `tasks` is empty, since an empty result is more likely a misconfigured query/expired token
+ *   than "every ticket left the sprint", and acting on it would mark everything Done at once.
  */
-async function classifySyncTasks(tasks) {
+async function classifySyncTasks(tasks, options = {}) {
   const [activeTasks, archivedTasks] = await Promise.all([
     PluginAPI.getTasks(),
     PluginAPI.getArchivedTasks(),
@@ -668,8 +701,13 @@ async function classifySyncTasks(tasks) {
   const toCreate = [];
   const toUpdate = [];
   const toSkip = [];
+  const incomingIssueIds = new Set();
 
   for (const task of tasks) {
+    if (task.issueId) {
+      incomingIssueIds.add(task.issueId);
+    }
+
     const existingActive = findTaskByIssueId(task.issueId, activeTasks);
     if (existingActive) {
       toUpdate.push({ existing: existingActive, incoming: task });
@@ -689,7 +727,21 @@ async function classifySyncTasks(tasks) {
     toCreate.push(task);
   }
 
-  return { toCreate, toUpdate, toSkip };
+  const toRemove = [];
+  if (options.autoArchiveRemoved && tasks.length > 0) {
+    const previousIssueIds = getLastSyncedIssueIds();
+    for (const issueId of previousIssueIds) {
+      if (incomingIssueIds.has(issueId)) {
+        continue;
+      }
+      const stillActive = findTaskByIssueId(issueId, activeTasks);
+      if (stillActive && !stillActive.isDone) {
+        toRemove.push(stillActive);
+      }
+    }
+  }
+
+  return { toCreate, toUpdate, toSkip, toRemove };
 }
 
 /**
@@ -758,11 +810,15 @@ async function splitUpdatesByChange(toUpdate) {
  * and updates already-imported tasks (matched by the "<issueId> - " title prefix)
  * in place when their title, description, tags, due date or project changed.
  * Tasks matching an ARCHIVED task are skipped entirely (never recreated, never touched).
+ * If `options.autoArchiveRemoved` is set, active tasks whose ticket no longer matches the
+ * query (e.g. removed from the sprint) are marked Done - the same "archive" proxy used
+ * elsewhere in this plugin, since the Plugin API has no way to archive a task directly.
  */
-async function importTasks(tasks) {
-  const { toCreate, toUpdate } = await classifySyncTasks(tasks);
+async function importTasks(tasks, options = {}) {
+  const { toCreate, toUpdate, toRemove } = await classifySyncTasks(tasks, options);
   let created = 0;
   let updated = 0;
+  let removed = 0;
 
   const allInvolvedTasks = [...toCreate, ...toUpdate.map((u) => u.incoming)];
 
@@ -850,7 +906,24 @@ async function importTasks(tasks) {
     }
   }
 
-  return { created, updated };
+  // REMOVE (ticket no longer matches the query - mark Done)
+  for (const task of toRemove) {
+    try {
+      await PluginAPI.updateTask(task.id, { isDone: true });
+      removed++;
+    } catch (error) {
+      console.error(`Failed to mark removed task "${task.title}" as done:`, error);
+    }
+  }
+
+  // Only track issue IDs while the feature is actually enabled - this call is shared with the
+  // CSV import path, which must never overwrite the YouTrack-specific tracked ID list (it would
+  // cause every YouTrack-synced task to look "removed" on the next sync).
+  if (options.autoArchiveRemoved) {
+    setLastSyncedIssueIds(tasks.filter((t) => t.issueId).map((t) => t.issueId));
+  }
+
+  return { created, updated, removed };
 }
 
 /**
